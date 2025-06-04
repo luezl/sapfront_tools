@@ -159,6 +159,12 @@ class SQLParserApp(QMainWindow):
         self.clear_btn.clicked.connect(self.clear_all)
         self.button_layout.addWidget(self.clear_btn)
         
+        # 复制按钮
+        self.copy_btn = QPushButton("复制字段")
+        self.copy_btn.setFixedWidth(100)
+        self.copy_btn.clicked.connect(self.copy_fields)
+        self.button_layout.addWidget(self.copy_btn)
+        
         # 添加按钮布局
         self.button_layout.addStretch()
         self.main_layout.addLayout(self.button_layout)
@@ -239,6 +245,16 @@ class SQLParserApp(QMainWindow):
         self.sql_input.clear()
         self.result_list.clear()
         self.status_bar.showMessage("已清空")
+        
+    def copy_fields(self):
+        """将解析出的字段复制到剪贴板"""
+        if self.result_list.count() == 0:
+            self.status_bar.showMessage("错误: 没有可复制的字段")
+            return
+            
+        fields = [self.result_list.item(i).text() for i in range(self.result_list.count())]
+        QApplication.clipboard().setText('\n'.join(fields))
+        self.status_bar.showMessage(f"成功: 已复制 {len(fields)} 个字段到剪贴板")
 
 
 if __name__ == "__main__":
