@@ -1,6 +1,6 @@
 import re
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QWidget, QTextEdit,
-                              QPushButton, QListWidget, QLabel, QStatusBar, QHBoxLayout)
+                              QPushButton, QListWidget, QLabel, QStatusBar, QHBoxLayout,QLineEdit)
 from PySide6.QtCore import Qt
 
 class SQLParser:
@@ -20,7 +20,14 @@ class SQLParser:
             field_matches = re.findall(r'([\w.]+)\s*[=<>!]+\s*\?', condition)
             fields.extend(field_matches)
         
-        return list(set(fields))
+        # 保持原始顺序的去重方式 (兼容旧版Python)
+        seen = set()
+        unique_fields = []
+        for f in fields:
+            if f not in seen:
+                seen.add(f)
+                unique_fields.append(f)
+        return unique_fields
 
     @staticmethod
     def parse_insert(sql):
@@ -36,9 +43,16 @@ class SQLParser:
         fields_str = match.group(1)
         # 处理多行字段和空格
         fields_str = re.sub(r'\s+', ' ', fields_str)  # 合并空白字符
-        fields = [f.strip() for f in fields_str.split(',') if f.strip()]
         
-        return fields
+        # 保持原始顺序的去重方式
+        unique_fields = []
+        seen = set()
+        for f_raw in fields_str.split(','):
+            f = f_raw.strip()
+            if f and f not in seen:
+                seen.add(f)
+                unique_fields.append(f)
+        return unique_fields
 
     @staticmethod
     def parse_update(sql):
@@ -62,7 +76,14 @@ class SQLParser:
             where_fields = re.findall(r'([\w.]+)\s*[=<>!]+\s*\?', where_clause)
             fields.extend(where_fields)
         
-        return list(set(fields))
+        # 保持原始顺序的去重方式 (兼容旧版Python)
+        seen = set()
+        unique_fields = []
+        for f in fields:
+            if f not in seen:
+                seen.add(f)
+                unique_fields.append(f)
+        return unique_fields
 
     @staticmethod
     def parse_delete(sql):
@@ -79,7 +100,14 @@ class SQLParser:
             field_matches = re.findall(r'([\w.]+)\s*[=<>!]+\s*\?', condition)
             fields.extend(field_matches)
         
-        return list(set(fields))
+        # 保持原始顺序的去重方式 (兼容旧版Python)
+        seen = set()
+        unique_fields = []
+        for f in fields:
+            if f not in seen:
+                seen.add(f)
+                unique_fields.append(f)
+        return unique_fields
 
     @classmethod
     def parse_sql(cls, sql):
@@ -141,6 +169,15 @@ class SQLParserApp(QMainWindow):
         self.sql_input.setPlaceholderText("请输入SQL语句(支持SELECT/INSERT/UPDATE/DELETE)...")
         self.sql_input.setMinimumHeight(150)
         self.main_layout.addWidget(self.sql_input)
+
+        # 格式输入区域
+        self.format_layout = QHBoxLayout()
+        self.format_label = QLabel("格式化模板 (用 {0} 代表字段名):")
+        self.format_layout.addWidget(self.format_label)
+        self.format_input = QLineEdit('args.add(paramMap.get("{0}"));') # 默认格式
+        self.format_input.setPlaceholderText('例如: <field name="{0}">')
+        self.format_layout.addWidget(self.format_input)
+        self.main_layout.addLayout(self.format_layout)
     
     def setup_button_area(self):
         # 按钮布局
@@ -164,6 +201,12 @@ class SQLParserApp(QMainWindow):
         self.copy_btn.setFixedWidth(100)
         self.copy_btn.clicked.connect(self.copy_fields)
         self.button_layout.addWidget(self.copy_btn)
+
+        # 格式化按钮
+        self.format_btn = QPushButton("格式化字段")
+        self.format_btn.setFixedWidth(120) # 调整宽度以适应文本
+        self.format_btn.clicked.connect(self.apply_format_to_fields)
+        self.button_layout.addWidget(self.format_btn)
         
         # 添加按钮布局
         self.button_layout.addStretch()
@@ -255,6 +298,37 @@ class SQLParserApp(QMainWindow):
         fields = [self.result_list.item(i).text() for i in range(self.result_list.count())]
         QApplication.clipboard().setText('\n'.join(fields))
         self.status_bar.showMessage(f"成功: 已复制 {len(fields)} 个字段到剪贴板")
+
+    def apply_format_to_fields(self):
+        """根据用户提供的格式模板格式化结果列表中的字段"""
+        if self.result_list.count() == 0:
+            self.status_bar.showMessage("错误: 结果列表中没有字段可供格式化")
+            return
+
+        format_template = self.format_input.text().strip()
+        if not format_template:
+            self.status_bar.showMessage("错误: 请输入格式化模板")
+            return
+        
+        if "{0}" not in format_template:
+            self.status_bar.showMessage("错误: 格式化模板必须包含 {0} 占位符")
+            return
+
+        try:
+            formatted_items = []
+            for i in range(self.result_list.count()):
+                original_field = self.result_list.item(i).text()
+                formatted_field = format_template.format(original_field)
+                formatted_items.append(formatted_field)
+            
+            self.result_list.clear()
+            self.result_list.addItems(formatted_items)
+            self.status_bar.showMessage(f"成功: 已应用格式到 {len(formatted_items)} 个字段")
+        except Exception as e:
+            self.status_bar.showMessage(f"格式化错误: {str(e)}")
+            # 发生错误时，尝试恢复原始列表（如果需要，可以存储原始列表的副本）
+            # 为简单起见，这里仅提示用户重新解析
+            self.status_bar.showMessage(f"格式化错误: {str(e)}. 请重新解析SQL或检查模板.")
 
 
 if __name__ == "__main__":
