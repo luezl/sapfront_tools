@@ -61,10 +61,8 @@ class SQLFormatterApp(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
-        
-
-        
-                # 初始化文本编辑器
+                
+        # 初始化文本编辑器
         self.sql_text_edit = QPlainTextEdit()
         self.sql_text_edit.setStyleSheet('''
             QPlainTextEdit {
@@ -76,7 +74,6 @@ class SQLFormatterApp(QMainWindow):
             }
         ''')
         layout.addWidget(self.sql_text_edit)
-
 
 
         # 初始化菜单栏
@@ -94,8 +91,6 @@ class SQLFormatterApp(QMainWindow):
         edit_menu.addAction('对齐注释', self.align_comments).setShortcut('Ctrl+L')
         edit_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
         self.current_file = None
-
-
 
 
         # 删除原有按钮相关代码
