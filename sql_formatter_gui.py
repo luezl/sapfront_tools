@@ -7,14 +7,14 @@ class SQLHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.keyword_format = QTextCharFormat()
-        self.keyword_format.setForeground(QColor("blue"))
-        self.keyword_format.setFontWeight(75)
+        self.keyword_format.setForeground(QColor("#7ECCDD")) # blue
+        self.keyword_format.setFontWeight(100)
 
         self.string_format = QTextCharFormat()
-        self.string_format.setForeground(QColor("red"))
+        self.string_format.setForeground(QColor("#DA8F70")) # red
 
         self.comment_format = QTextCharFormat()
-        self.comment_format.setForeground(QColor("green"))
+        self.comment_format.setForeground(QColor("#6DB487")) # green
 
     def highlightBlock(self, text):
         # Simple highlighting for SQL keywords, strings and comments
