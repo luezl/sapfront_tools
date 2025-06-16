@@ -2,6 +2,9 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QInputDialog, QFileDial
 from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 from PySide6.QtCore import Qt
 import sqlparse
+import chardet
+
+
 
 class SQLHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
