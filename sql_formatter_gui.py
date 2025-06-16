@@ -78,7 +78,8 @@ class SQLFormatterApp(QMainWindow):
         self.format_button = QPushButton("格式化SQL")
         self.java_format_button = QPushButton("转换为Java格式")
         self.reverse_button = QPushButton("从Java转回SQL")
-        self.fill_params_button = QPushButton("填充参数")  # 新增按钮
+        self.fill_params_button = QPushButton("填充参数")
+        self.align_comments_button = QPushButton("对齐注释")  # 新增按钮
         
         # Set button styles
         button_style = """
@@ -98,7 +99,8 @@ class SQLFormatterApp(QMainWindow):
         self.format_button.setStyleSheet(button_style)
         self.java_format_button.setStyleSheet(button_style)
         self.reverse_button.setStyleSheet(button_style)
-        self.fill_params_button.setStyleSheet(button_style)  # 为新增按钮设置样式
+        self.fill_params_button.setStyleSheet(button_style)
+        self.align_comments_button.setStyleSheet(button_style)  # 为新增按钮设置样式
         
         # Main layout with spacing and margins
         main_layout = QVBoxLayout()
@@ -120,7 +122,8 @@ class SQLFormatterApp(QMainWindow):
         button_layout.addWidget(self.format_button)
         button_layout.addWidget(self.java_format_button)
         button_layout.addWidget(self.reverse_button)
-        button_layout.addWidget(self.fill_params_button)  # 将新增按钮添加到按钮布局中
+        button_layout.addWidget(self.fill_params_button)
+        button_layout.addWidget(self.align_comments_button)  # 将新增按钮添加到按钮布局中
         button_layout.addStretch(1)
         
         # Add button layout to main layout
@@ -136,7 +139,8 @@ class SQLFormatterApp(QMainWindow):
         self.format_button.clicked.connect(self.format_sql)
         self.java_format_button.clicked.connect(self.convert_to_java_format)
         self.reverse_button.clicked.connect(self.convert_back_to_sql)
-        self.fill_params_button.clicked.connect(self.fill_sql_parameters)  # 连接新增按钮的点击事件到fill_sql_parameters方法
+        self.fill_params_button.clicked.connect(self.fill_sql_parameters)
+        self.align_comments_button.clicked.connect(self.align_comments)  # 连接新增按钮的点击事件到align_comments方法
 
     def format_sql(self):
         sql = self.sql_text_edit.toPlainText()
@@ -244,3 +248,56 @@ class SQLFormatterApp(QMainWindow):
         
         # 显示填充后的SQL
         self.sql_text_edit.setPlainText(sql)
+
+    def align_comments(self):
+        """
+        对齐代码中的注释。
+
+        该方法将Java代码中的tab转换为4个空格，并使注释对齐。
+        支持处理单行注释(//)和Javadoc注释(/** */模式)。
+
+        参数:
+            无
+
+        返回值:
+            无
+        """
+        # 获取当前文本
+        java_code = self.sql_text_edit.toPlainText()
+        if not java_code:
+            return
+
+        # 按行分割
+        lines = java_code.splitlines()
+        result_lines = []
+        
+        # 第一次处理：将tab转换为空格，记录最大注释位置
+        max_comment_pos = 0
+        processed_lines = []
+        
+        for line in lines:
+            # 将tab转换为4个空格
+            line_with_spaces = line.replace('\t', '    ')
+            
+            # 查找注释位置
+            comment_pos = line_with_spaces.find('//')
+            if comment_pos != -1:
+                # 更新最大注释位置
+                max_comment_pos = max(max_comment_pos, comment_pos)
+                
+            # 保存处理后的行和注释位置
+            processed_lines.append((line_with_spaces, comment_pos))
+        
+        # 第二次处理：对齐注释
+        for line, comment_pos in processed_lines:
+            if comment_pos != -1:
+                # 如果是注释行，添加适当的前导空格
+                aligned_line = line[:comment_pos] + ' ' * (max_comment_pos - comment_pos) + line[comment_pos:]
+                result_lines.append(aligned_line)
+            else:
+                # 非注释行直接添加
+                result_lines.append(line)
+        
+        # 重新设置文本
+        aligned_java_code = '\n'.join(result_lines)
+        self.sql_text_edit.setPlainText(aligned_java_code)
