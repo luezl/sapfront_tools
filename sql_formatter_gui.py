@@ -3,6 +3,7 @@ from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 from PySide6.QtCore import Qt
 import sqlparse
 import chardet
+from CodeEditor import CodeEditor
 
 
 
@@ -66,7 +67,8 @@ class SQLFormatterApp(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
                 
         # 初始化文本编辑器
-        self.sql_text_edit = QPlainTextEdit()
+        # self.sql_text_edit = QPlainTextEdit()
+        self.sql_text_edit = CodeEditor()
         self.sql_text_edit.setStyleSheet('''
             QPlainTextEdit {
                 font-family: Consolas;
