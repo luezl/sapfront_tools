@@ -10,6 +10,7 @@ from SQLHighlighter import SQLHighlighter
 class SQLFormatterApp(QMainWindow):
     def __init__(self):
         super().__init__()
+
         self.setWindowTitle("SQL编辑器")  # 设置主窗口标题
         self.resize(800, 600)  # 设置初始窗口尺寸
 
@@ -42,12 +43,13 @@ class SQLFormatterApp(QMainWindow):
         file_menu.addAction('退出', self.exit_app).setShortcut('Ctrl+Q')
         
         # 编辑菜单
-        edit_menu = self.menuBar().addMenu('编辑(&E)')
+        edit_menu = self.menuBar().addMenu('工具(&T)')
         edit_menu.addAction('格式化SQL', self.format_sql).setShortcut('Ctrl+F')
         edit_menu.addAction('转换Java格式', self.convert_to_java_format).setShortcut('Ctrl+J')
-        edit_menu.addAction('从Java转回SQL', self.convert_back_to_sql).setShortcut('Ctrl+J')
+        edit_menu.addAction('从Java转回SQL', self.convert_back_to_sql).setShortcut('Ctrl+K')
         edit_menu.addAction('对齐注释', self.align_comments).setShortcut('Ctrl+L')
         edit_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
+        edit_menu.addAction('代码填充', self.fill_code).setShortcut('Ctrl+M')
         self.current_file = None
 
 
@@ -252,6 +254,53 @@ class SQLFormatterApp(QMainWindow):
         aligned_java_code = '\n'.join(result_lines)
         self.sql_text_edit.setPlainText(aligned_java_code)
       
+
+    def fill_code(self):
+        """
+        填充代码模板。
+
+        该方法弹出输入对话框获取代码模板，将文本编辑器中的内容按照模板进行填充。
+        支持使用{0}、{1}等占位符的模板格式。
+
+        参数:
+            无
+
+        返回值:
+            无
+        """
+        # 弹出输入对话框获取代码模板
+        template, ok = QInputDialog.getText(self, '输入模板', '请输入代码模板（使用{0}, {1}作为占位符）:')
+        if not ok or not template:
+            return
+
+        # 获取当前文本编辑器的内容
+        text = self.sql_text_edit.toPlainText()
+        if not text:
+            return
+
+        # 按行处理文本
+        lines = text.splitlines()
+        result_lines = []
+        
+        for line in lines:
+            # 跳过空行
+            if not line.strip():
+                continue
+                
+            # 分割行内容
+            parts = [part.strip() for part in line.split('\t')]
+            
+            # 替换模板中的占位符
+            try:
+                formatted_line = template.format(*parts)
+                result_lines.append(formatted_line)
+            except IndexError as e:
+                QMessageBox.warning(self, '模板错误', f'模板占位符与实际参数不匹配: {str(e)}')
+                return
+
+        # 将结果插入到文本编辑器中
+        if result_lines:
+            self.sql_text_edit.setPlainText('\n'.join(result_lines))
 
     def open_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, '打开文件', '', 'SQL Files (*.sql);;All Files (*)')
