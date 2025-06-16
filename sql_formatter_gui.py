@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QLabel, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QInputDialog, QFileDialog, QVBoxLayout, QWidget, QHBoxLayout, QMessageBox, QPlainTextEdit
 from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 from PySide6.QtCore import Qt
 import sqlparse
@@ -53,94 +53,90 @@ class SQLHighlighter(QSyntaxHighlighter):
 class SQLFormatterApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SQL Formatter")
-        self.setGeometry(100, 100, 800, 600)
+        self.setWindowTitle("SQL编辑器")  # 设置主窗口标题
+        self.resize(800, 600)  # 设置初始窗口尺寸
 
-        # Set window style
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f5f5f5;
-            }
-            QTextEdit {
-                background-color: #ffffff;
-                font-family: Consolas;
-            }
-        """)
-
-        # Create widgets
-        self.sql_text_edit = QTextEdit()
-        self.sql_text_edit.setFont(QFont("Consolas", 12))
-        self.sql_text_edit.setStyleSheet("padding: 10px; border: 1px solid #ccc; border-radius: 5px;")
-        self.sql_text_edit.setFixedHeight(470)
+        # 主布局
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
+
+        
+                # 初始化文本编辑器
+        self.sql_text_edit = QPlainTextEdit()
+        self.sql_text_edit.setStyleSheet('''
+            QPlainTextEdit {
+                font-family: Consolas;
+                font-size: 11pt;
+                background-color: #2b2b2b;
+                color: #a9b7c6;
+                padding: 10px;
+            }
+        ''')
+        layout.addWidget(self.sql_text_edit)
+
+
+
+        # 初始化菜单栏
+        file_menu = self.menuBar().addMenu('文件(&F)')
+        file_menu.addAction('打开', self.open_file).setShortcut('Ctrl+O')
+        file_menu.addAction('保存', self.save_file).setShortcut('Ctrl+S')
+        file_menu.addSeparator()
+        file_menu.addAction('退出', self.exit_app).setShortcut('Ctrl+Q')
+        
+        # 编辑菜单
+        edit_menu = self.menuBar().addMenu('编辑(&E)')
+        edit_menu.addAction('格式化SQL', self.format_sql).setShortcut('Ctrl+F')
+        edit_menu.addAction('转换Java格式', self.convert_to_java_format).setShortcut('Ctrl+J')
+        edit_menu.addAction('从Java转回SQL', self.convert_back_to_sql).setShortcut('Ctrl+J')
+        edit_menu.addAction('对齐注释', self.align_comments).setShortcut('Ctrl+L')
+        edit_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
+        self.current_file = None
+
+
+
+
+        # 删除原有按钮相关代码
         self.highlighter = SQLHighlighter(self.sql_text_edit.document())
         
-        self.format_button = QPushButton("格式化SQL")
-        self.java_format_button = QPushButton("转换为Java格式")
-        self.reverse_button = QPushButton("从Java转回SQL")
-        self.fill_params_button = QPushButton("填充参数")
-        self.align_comments_button = QPushButton("对齐注释")  # 新增按钮
+        # 然后创建布局和菜单
+        self.editor_widget = QWidget()
+        self.editor_layout = QHBoxLayout()
+        self.editor_layout.setContentsMargins(0, 0, 0, 0)
+        self.editor_layout.setSpacing(0)
+
+        # 行号区域
+        self.line_number_area = QWidget()
+        self.line_number_area.setFixedWidth(40)
+        self.line_number_area.setStyleSheet("""
+            background-color: #252526;
+            color: #858585;
+            font-family: Consolas;
+            font-size: 13px;
+            padding-right: 5px;
+        """)
+
+        # 文本编辑区域
+        # self.sql_text_edit = QTextEdit()
+        # self.sql_text_edit.setFont(QFont("Consolas", 12))
+        # self.sql_text_edit.setStyleSheet("padding: 10px;")
+        # self.sql_text_edit.setFixedHeight(470)
         
-        # Set button styles
-        button_style = """
-            QPushButton {
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 5px;
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """
+        # 删除以下按钮定义
+        # self.format_button = QPushButton("格式化SQL")
+        # self.java_format_button = QPushButton("转换为Java格式")
+        # self.reverse_button = QPushButton("从Java转回SQL")
+        # self.fill_params_button = QPushButton("填充参数")
+        # self.align_comments_button = QPushButton("对齐注释")
         
-        self.format_button.setStyleSheet(button_style)
-        self.java_format_button.setStyleSheet(button_style)
-        self.reverse_button.setStyleSheet(button_style)
-        self.fill_params_button.setStyleSheet(button_style)
-        self.align_comments_button.setStyleSheet(button_style)  # 为新增按钮设置样式
-        
-        # Main layout with spacing and margins
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Add title label
-        title_label = QLabel("SQL 格式化工具")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
-        main_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        
-        # Add SQL editor
-        main_layout.addWidget(self.sql_text_edit)
-        
-        # Add button layout with spacing
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(15)
-        button_layout.addStretch(1)
-        button_layout.addWidget(self.format_button)
-        button_layout.addWidget(self.java_format_button)
-        button_layout.addWidget(self.reverse_button)
-        button_layout.addWidget(self.fill_params_button)
-        button_layout.addWidget(self.align_comments_button)  # 将新增按钮添加到按钮布局中
-        button_layout.addStretch(1)
-        
-        # Add button layout to main layout
-        main_layout.addLayout(button_layout)
-        main_layout.addStretch(1)
-        
-        # Container widget
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
-        
-        # Connect buttons to functions
-        self.format_button.clicked.connect(self.format_sql)
-        self.java_format_button.clicked.connect(self.convert_to_java_format)
-        self.reverse_button.clicked.connect(self.convert_back_to_sql)
-        self.fill_params_button.clicked.connect(self.fill_sql_parameters)
-        self.align_comments_button.clicked.connect(self.align_comments)  # 连接新增按钮的点击事件到align_comments方法
+        # 删除按钮事件连接
+        # self.format_button.clicked.connect(self.format_sql)
+        # self.java_format_button.clicked.connect(self.convert_to_java_format)
+        # self.reverse_button.clicked.connect(self.convert_back_to_sql)
+        # self.fill_params_button.clicked.connect(self.fill_sql_parameters)
+        # self.align_comments_button.clicked.connect(self.align_comments)
 
     def format_sql(self):
         sql = self.sql_text_edit.toPlainText()
@@ -249,6 +245,7 @@ class SQLFormatterApp(QMainWindow):
         # 显示填充后的SQL
         self.sql_text_edit.setPlainText(sql)
 
+   
     def align_comments(self):
         """
         对齐代码中的注释。
@@ -301,3 +298,47 @@ class SQLFormatterApp(QMainWindow):
         # 重新设置文本
         aligned_java_code = '\n'.join(result_lines)
         self.sql_text_edit.setPlainText(aligned_java_code)
+      
+
+    def open_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, '打开文件', '', 'SQL Files (*.sql);;All Files (*)')
+        if file_path:
+            try:
+                with open(file_path, 'rb') as f:
+                    raw_data = f.read()
+                    # 自动检测文件编码
+                    detected = chardet.detect(raw_data)
+                    encoding = detected['encoding'] or 'gbk'
+                    try:
+                        text = raw_data.decode(encoding)
+                    except UnicodeDecodeError:
+                        text = raw_data.decode('gbk', errors='replace')
+                    # 分步解码策略
+                    try:
+                        text = raw_data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        detected = chardet.detect(raw_data)
+                        text = raw_data.decode(detected['encoding'] or 'gb18030', errors='replace')
+                self.sql_text_edit.setPlainText(text)
+            except Exception as e:
+                QMessageBox.critical(self, '打开失败', f'文件解码失败: {str(e)}')
+            self.current_file = file_path
+            self.setWindowTitle(f'SQL编辑器 - {file_path}')
+    
+    def save_file(self):
+        if self.current_file:
+            with open(self.current_file, 'w', encoding='utf-8') as f:
+                f.write(self.sql_text_edit.toPlainText())
+        else:
+            self.save_as_file()
+    
+    def save_as_file(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, '另存为', '', 'SQL Files (*.sql);;All Files (*)')
+        if file_path:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(self.sql_text_edit.toPlainText())
+            self.current_file = file_path
+            self.setWindowTitle(f'SQL编辑器 - {file_path}')
+    
+    def exit_app(self):
+        QApplication.instance().quit()
