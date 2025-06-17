@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QInputDialog, QFileDialog, QVBoxLayout, QWidget, QHBoxLayout, QMessageBox, QPlainTextEdit
-from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter
+from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter,QIcon
 from PySide6.QtCore import Qt
 import sqlparse
 import chardet
@@ -13,6 +13,8 @@ class SQLFormatterApp(QMainWindow):
 
         self.setWindowTitle("SQL编辑器")  # 设置主窗口标题
         self.resize(800, 600)  # 设置初始窗口尺寸
+         # 设置窗口图标
+        self.setWindowIcon(QIcon("icons/Editor.png"))  # 添加这一行
 
         # 主布局
         central_widget = QWidget()

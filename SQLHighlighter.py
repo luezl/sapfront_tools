@@ -4,7 +4,7 @@ class SQLHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.keyword_format = QTextCharFormat()
-        self.keyword_format.setForeground(QColor("#7ECCDD")) # blue
+        self.keyword_format.setForeground(QColor("#3D96D6")) # blue
         self.keyword_format.setFontWeight(100)
 
         self.string_format = QTextCharFormat()
