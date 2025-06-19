@@ -5,6 +5,7 @@ import sqlparse
 import chardet
 from CodeEditor import CodeEditor
 from SQLHighlighter import SQLHighlighter
+import os
 
 
 class SQLFormatterApp(QMainWindow):
@@ -14,7 +15,9 @@ class SQLFormatterApp(QMainWindow):
         self.setWindowTitle("SQL编辑器")  # 设置主窗口标题
         self.resize(800, 600)  # 设置初始窗口尺寸
          # 设置窗口图标
-        self.setWindowIcon(QIcon("icons/Editor.png"))  # 添加这一行
+        current_dir = os.path.dirname(os.path.abspath(__file__))  # 获取当前文件所在目录
+        icon_path = os.path.join(current_dir, "icons", "Editor.png")  # 构建完整路径
+        self.setWindowIcon(QIcon(icon_path))
 
         # 主布局
         central_widget = QWidget()
