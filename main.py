@@ -1,4 +1,4 @@
-from sql_formatter_gui import SQLFormatterApp
+from SQLFormatterApp import SQLFormatterApp
 from PySide6.QtWidgets import QApplication
 import sys
 
