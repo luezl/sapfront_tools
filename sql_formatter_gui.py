@@ -273,8 +273,15 @@ class SQLFormatterApp(QMainWindow):
         返回值:
             无
         """
-        # 弹出输入对话框获取代码模板
-        template, ok = QInputDialog.getText(self, '输入模板', '请输入代码模板（使用{0}, {1}作为占位符）:')
+        # 创建多行输入对话框
+        # 使用 getMultiLineText 方法创建多行输入对话框
+        template, ok = QInputDialog.getMultiLineText(
+            self, 
+            '输入模板', 
+            '请输入代码模板（使用{0}, {1}作为占位符）:', 
+            ''
+        )
+            
         if not ok or not template:
             return
 
@@ -298,7 +305,7 @@ class SQLFormatterApp(QMainWindow):
             # 替换模板中的占位符
             try:
                 formatted_line = template.format(*parts)
-                result_lines.append(formatted_line)
+                result_lines.extend(formatted_line.split('\n'))  # 支持多行输出
             except IndexError as e:
                 QMessageBox.warning(self, '模板错误', f'模板占位符与实际参数不匹配: {str(e)}')
                 return
@@ -306,7 +313,6 @@ class SQLFormatterApp(QMainWindow):
         # 将结果插入到文本编辑器中
         if result_lines:
             self.sql_text_edit.setPlainText('\n'.join(result_lines))
-
     def open_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, '打开文件', '', 'SQL Files (*.sql);;All Files (*)')
         if file_path:
