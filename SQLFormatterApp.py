@@ -144,7 +144,13 @@ class SQLFormatterApp(QMainWindow):
         sql = self.sql_text_edit.toPlainText()
         try:
             # Format SQL with uppercase keywords
-            formatted_sql = sqlparse.format(sql, reindent=True, keyword_case='upper')
+            formatted_sql = sqlparse.format(sql,
+                reindent=True, 
+                keyword_case='upper',
+                strip_comments=True,
+                use_space_around_operators=True,
+                comma_first=True
+            )
             # 使用 QTextCursor 替换文本，支持撤销功能
             cursor = self.sql_text_edit.textCursor()
             cursor.beginEditBlock()
