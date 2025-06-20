@@ -65,6 +65,10 @@ class SQLFormatterApp(QMainWindow):
         tool_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
         tool_menu.addAction('代码填充', self.fill_code).setShortcut('Ctrl+M')
 
+        # 帮助菜单
+        help_menu = self.menuBar().addMenu('帮助(&H)')
+        help_menu.addAction('关于', self.show_about).setShortcut('F1')
+
         # 删除原有按钮相关代码
         self.highlighter = SQLHighlighter(self.sql_text_edit.document())
         
@@ -427,3 +431,34 @@ class SQLFormatterApp(QMainWindow):
     
     def exit_app(self):
         QApplication.instance().quit()
+
+    def show_about(self):
+        """
+        显示关于对话框
+        
+        显示软件信息、版本、作者等详细信息
+        """
+        about_text = """
+        <h2>SQL编辑器</h2>
+        <p><b>版本:</b> 1.0.0</p>
+        <p><b>描述:</b> 一个功能强大的SQL编辑和格式化工具</p>
+        <br>
+        <h3>功能特性:</h3>
+        <ul>
+            <li>SQL语法高亮显示</li>
+            <li>SQL代码格式化</li>
+            <li>Java代码格式转换</li>
+            <li>参数填充功能</li>
+            <li>注释对齐功能</li>
+            <li>代码模板填充</li>
+            <li>撤销/重做支持</li>
+        </ul>
+        <br>
+        <h3>作者信息:</h3>
+        <p><b>作者:</b> 刘忠亮</p>
+        <p><b>邮箱:</b> zhongliang.liu@lixil.com</p>
+        <br>
+        <p><b>开发时间:</b> 2025年</p>
+        """
+        
+        QMessageBox.about(self, "关于 SQL编辑器", about_text)
