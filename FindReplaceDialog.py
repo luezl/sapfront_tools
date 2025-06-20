@@ -122,11 +122,11 @@ class FindReplaceDialog(QDialog):
                 
     def highlight_all_matches(self):
         """高亮显示所有匹配的文本"""
-        self.clear_highlights()
         find_text = self.find_edit.text()
         if not find_text:
+            self.clear_highlights()
             return
-        
+        self.clear_highlights()
         try:
             if self.regex_checkbox.isChecked():
                 flags = re.IGNORECASE if not self.case_sensitive_checkbox.isChecked() else 0
@@ -138,12 +138,10 @@ class FindReplaceDialog(QDialog):
                 flags = QTextDocument.FindFlags()
                 if self.case_sensitive_checkbox.isChecked():
                     flags |= QTextDocument.FindCaseSensitively
-                
                 cursor = self.text_editor.document().find(find_text, 0, flags)
                 while not cursor.isNull():
                     self.highlight_range(cursor.selectionStart(), cursor.selectionEnd())
                     cursor = self.text_editor.document().find(find_text, cursor, flags)
-            
             self.update_status()
         except re.error as e:
             self.status_label.setText(f"正则表达式错误: {e}")
@@ -160,28 +158,10 @@ class FindReplaceDialog(QDialog):
         """清除所有高亮"""
         # 创建一个默认的QTextCharFormat来清除格式
         default_format = QTextCharFormat()
-        
-        # 获取文档的第一个块
-        block = self.text_editor.document().begin()
-        
-        # 遍历所有文本块
-        while block.isValid():
-            # 获取块的布局
-            layout = block.layout()
-            if layout:
-                # 遍历布局中的所有格式范围
-                for frange in layout.formats():
-                    # 如果格式是高亮格式，则清除它
-                    if frange.format.background() == self.highlight_format.background():
-                        cursor = QTextCursor(block)
-                        cursor.setPosition(block.position() + frange.start, QTextCursor.MoveAnchor)
-                        cursor.setPosition(block.position() + frange.start + frange.length, QTextCursor.KeepAnchor)
-                        cursor.setCharFormat(default_format)
-            
-            # 移动到下一个块
-            block = block.next()
-        
-        # 更新UI
+        # 用 QTextCursor 选中全文并重置格式，确保所有高亮都被清除
+        cursor = QTextCursor(self.text_editor.document())
+        cursor.select(QTextCursor.Document)
+        cursor.setCharFormat(default_format)
         self.text_editor.viewport().update()
         self.current_highlights.clear()
         self.status_label.setText("已清除高亮")

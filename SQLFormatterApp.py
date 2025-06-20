@@ -468,13 +468,16 @@ class SQLFormatterApp(QMainWindow):
 
     def show_find_replace_dialog(self):
         """
-        显示查找替换对话框
-        
-        创建并显示查找替换对话框，支持正则表达式查找和实时高亮显示
+        显示查找替换对话框（非模态）
         如果当前有选中的文本，会自动填充到查找框中
         """
-        # 创建对话框
-        dialog = FindReplaceDialog(self, self.sql_text_edit)
-        
-        # 显示对话框
-        dialog.exec()
+        # 如果已存在查找替换窗口且未关闭，则激活它
+        if hasattr(self, '_find_replace_dialog') and self._find_replace_dialog is not None:
+            self._find_replace_dialog.activateWindow()
+            self._find_replace_dialog.raise_()
+            return
+        # 创建新对话框
+        self._find_replace_dialog = FindReplaceDialog(self, self.sql_text_edit)
+        # 关闭时清理引用
+        self._find_replace_dialog.finished.connect(lambda _: setattr(self, '_find_replace_dialog', None))
+        self._find_replace_dialog.show() 
