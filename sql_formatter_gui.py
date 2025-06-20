@@ -138,7 +138,12 @@ class SQLFormatterApp(QMainWindow):
         try:
             # Format SQL with uppercase keywords
             formatted_sql = sqlparse.format(sql, reindent=True, keyword_case='upper')
-            self.sql_text_edit.setPlainText(formatted_sql)
+            # 使用 QTextCursor 替换文本，支持撤销功能
+            cursor = self.sql_text_edit.textCursor()
+            cursor.beginEditBlock()
+            cursor.select(cursor.SelectionType.Document)
+            cursor.insertText(formatted_sql)
+            cursor.endEditBlock()
         except Exception as e:
             print(f"Error formatting SQL: {e}")
 
@@ -158,8 +163,12 @@ class SQLFormatterApp(QMainWindow):
             # Add each line as append statement
             java_code += f'sb.append(" {escaped_line} ");\n'
         
-        # Set the Java code in the text edit
-        self.sql_text_edit.setPlainText(java_code)
+        # 使用 QTextCursor 替换文本，支持撤销功能
+        cursor = self.sql_text_edit.textCursor()
+        cursor.beginEditBlock()
+        cursor.select(cursor.SelectionType.Document)
+        cursor.insertText(java_code)
+        cursor.endEditBlock()
 
     """
     将Java代码格式的SQL转换回原始SQL语句。
@@ -199,7 +208,12 @@ class SQLFormatterApp(QMainWindow):
         
        
         if sql:
-            self.sql_text_edit.setPlainText(sql)
+            # 使用 QTextCursor 替换文本，支持撤销功能
+            cursor = self.sql_text_edit.textCursor()
+            cursor.beginEditBlock()
+            cursor.select(cursor.SelectionType.Document)
+            cursor.insertText(sql)
+            cursor.endEditBlock()
 
     def fill_sql_parameters(self):
         """
@@ -237,8 +251,12 @@ class SQLFormatterApp(QMainWindow):
         for param in params:
             sql = sql.replace('?', f"'{param}'", 1)  # 只替换第一个匹配项
         
-        # 显示填充后的SQL
-        self.sql_text_edit.setPlainText(sql)
+        # 使用 QTextCursor 替换文本，支持撤销功能
+        cursor = self.sql_text_edit.textCursor()
+        cursor.beginEditBlock()
+        cursor.select(cursor.SelectionType.Document)
+        cursor.insertText(sql)
+        cursor.endEditBlock()
 
    
     def align_comments(self):
@@ -290,17 +308,20 @@ class SQLFormatterApp(QMainWindow):
                 # 非注释行直接添加
                 result_lines.append(line)
         
-        # 重新设置文本
+        # 使用 QTextCursor 替换文本，支持撤销功能
         aligned_java_code = '\n'.join(result_lines)
-        self.sql_text_edit.setPlainText(aligned_java_code)
-      
+        cursor = self.sql_text_edit.textCursor()
+        cursor.beginEditBlock()
+        cursor.select(cursor.SelectionType.Document)
+        cursor.insertText(aligned_java_code)
+        cursor.endEditBlock()
 
     def fill_code(self):
         """
         填充代码模板。
 
         该方法弹出输入对话框获取代码模板，将文本编辑器中的内容按照模板进行填充。
-        支持使用{0}、{1}等占位符的模板格式。
+        支持使用{0}、{1}等占位符的模板格式。修改后的版本支持撤销功能。
 
         参数:
             无
@@ -345,9 +366,18 @@ class SQLFormatterApp(QMainWindow):
                 QMessageBox.warning(self, '模板错误', f'模板占位符与实际参数不匹配: {str(e)}')
                 return
 
-        # 将结果插入到文本编辑器中
+        # 使用 QTextCursor 替换文本，这样可以支持撤销功能
         if result_lines:
-            self.sql_text_edit.setPlainText('\n'.join(result_lines))
+            cursor = self.sql_text_edit.textCursor()
+            # 开始复合编辑操作，这样整个替换操作会被视为一个撤销步骤
+            cursor.beginEditBlock()
+            # 选择所有文本
+            cursor.select(cursor.SelectionType.Document)
+            # 替换选中的文本
+            cursor.insertText('\n'.join(result_lines))
+            # 结束复合编辑操作
+            cursor.endEditBlock()
+
     def open_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, '打开文件', '', 'SQL Files (*.sql);;All Files (*)')
         if file_path:
@@ -367,7 +397,14 @@ class SQLFormatterApp(QMainWindow):
                     except UnicodeDecodeError:
                         detected = chardet.detect(raw_data)
                         text = raw_data.decode(detected['encoding'] or 'gb18030', errors='replace')
-                self.sql_text_edit.setPlainText(text)
+                
+                # 使用 QTextCursor 替换文本，支持撤销功能
+                cursor = self.sql_text_edit.textCursor()
+                cursor.beginEditBlock()
+                cursor.select(cursor.SelectionType.Document)
+                cursor.insertText(text)
+                cursor.endEditBlock()
+                
             except Exception as e:
                 QMessageBox.critical(self, '打开失败', f'文件解码失败: {str(e)}')
             self.current_file = file_path
