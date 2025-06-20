@@ -1,5 +1,8 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QInputDialog, QFileDialog, QVBoxLayout, QWidget, QHBoxLayout, QMessageBox, QPlainTextEdit
-from PySide6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter,QIcon
+from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog, QFileDialog, 
+                              QVBoxLayout, QWidget, QHBoxLayout, QMessageBox, QPlainTextEdit,
+                              QMenu)  
+from PySide6.QtGui import (QFont, QColor, QTextCharFormat, QSyntaxHighlighter, QIcon, 
+                          QUndoStack, QKeySequence, QAction)  
 from PySide6.QtCore import Qt
 import sqlparse
 import chardet
@@ -40,6 +43,8 @@ class SQLFormatterApp(QMainWindow):
         layout.addWidget(self.sql_text_edit)
 
 
+
+
         # 初始化菜单栏
         file_menu = self.menuBar().addMenu('文件(&F)')
         file_menu.addAction('打开', self.open_file).setShortcut('Ctrl+O')
@@ -48,15 +53,17 @@ class SQLFormatterApp(QMainWindow):
         file_menu.addAction('退出', self.exit_app).setShortcut('Ctrl+Q')
         
         # 编辑菜单
-        edit_menu = self.menuBar().addMenu('工具(&T)')
-        edit_menu.addAction('格式化SQL', self.format_sql).setShortcut('Ctrl+F')
-        edit_menu.addAction('转换Java格式', self.convert_to_java_format).setShortcut('Ctrl+J')
-        edit_menu.addAction('从Java转回SQL', self.convert_back_to_sql).setShortcut('Ctrl+K')
-        edit_menu.addAction('对齐注释', self.align_comments).setShortcut('Ctrl+L')
-        edit_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
-        edit_menu.addAction('代码填充', self.fill_code).setShortcut('Ctrl+M')
+        edit_menu = self.menuBar().addMenu('编辑(&E)')
+
         self.current_file = None
 
+        tool_menu = self.menuBar().addMenu('工具(&T)')
+        tool_menu.addAction('格式化SQL', self.format_sql).setShortcut('Ctrl+F')
+        tool_menu.addAction('转换Java格式', self.convert_to_java_format).setShortcut('Ctrl+J')
+        tool_menu.addAction('从Java转回SQL', self.convert_back_to_sql).setShortcut('Ctrl+K')
+        tool_menu.addAction('对齐注释', self.align_comments).setShortcut('Ctrl+L')
+        tool_menu.addAction('填充参数', self.fill_sql_parameters).setShortcut('Ctrl+P')
+        tool_menu.addAction('代码填充', self.fill_code).setShortcut('Ctrl+M')
 
         # 删除原有按钮相关代码
         self.highlighter = SQLHighlighter(self.sql_text_edit.document())
@@ -78,6 +85,10 @@ class SQLFormatterApp(QMainWindow):
             padding-right: 5px;
         """)
 
+         # 添加撤销/重做功能
+        self.undo_stack = QUndoStack(self)  # 新增
+        self.setup_undo_redo_actions()  # 新增
+
         # 文本编辑区域
         # self.sql_text_edit = QTextEdit()
         # self.sql_text_edit.setFont(QFont("Consolas", 12))
@@ -97,6 +108,30 @@ class SQLFormatterApp(QMainWindow):
         # self.reverse_button.clicked.connect(self.convert_back_to_sql)
         # self.fill_params_button.clicked.connect(self.fill_sql_parameters)
         # self.align_comments_button.clicked.connect(self.align_comments)
+    def setup_undo_redo_actions(self):
+        """设置撤销和重做操作"""
+        # 撤销动作
+        undo_action = QAction("撤销", self)
+        undo_action.setShortcut(QKeySequence.Undo)
+        undo_action.triggered.connect(self.sql_text_edit.undo)
+        
+        # 重做动作
+        redo_action = QAction("重做", self)
+        redo_action.setShortcut(QKeySequence.Redo)
+        redo_action.triggered.connect(self.sql_text_edit.redo)
+        
+        # 获取工具菜单（确保名称完全匹配，包括'&'符号）
+        menu_bar = self.menuBar()
+        for menu in menu_bar.findChildren(QMenu):
+            if menu.title() == '编辑(&E)':
+                menu.addAction(undo_action)
+                menu.addAction(redo_action)
+                return
+        
+        # 如果没有找到工具菜单，就添加到编辑菜单
+        edit_menu = menu_bar.addMenu('编辑(&E)')
+        edit_menu.addAction(undo_action)
+        edit_menu.addAction(redo_action)
 
     def format_sql(self):
         sql = self.sql_text_edit.toPlainText()
