@@ -163,6 +163,13 @@ class SQLFormatterApp(QMainWindow):
         # 编辑菜单
         edit_menu = self.menuBar().addMenu('编辑(&E)')
         edit_menu.addAction('查找替换', self.show_find_replace_dialog).setShortcut('Ctrl+H')
+        edit_menu.addSeparator()
+        
+        # 显示空白字符选项
+        self.show_whitespace_action = edit_menu.addAction('显示空格和Tab')
+        self.show_whitespace_action.setCheckable(True)
+        self.show_whitespace_action.setChecked(True)
+        self.show_whitespace_action.triggered.connect(self.toggle_whitespace_visibility)
 
         # 工具菜单
         tool_menu = self.menuBar().addMenu('工具(&T)')
@@ -183,6 +190,11 @@ class SQLFormatterApp(QMainWindow):
         
         # 监听文本变化以更新标签页标题
         tab_editor.editor.textChanged.connect(lambda: self.update_tab_title(tab_editor))
+        
+        # 应用当前的空白字符显示设置
+        if hasattr(self, 'show_whitespace_action'):
+            show_whitespace = self.show_whitespace_action.isChecked()
+            tab_editor.editor.set_show_whitespace(show_whitespace)
         
         # 添加标签页
         index = self.tab_widget.addTab(tab_editor, tab_editor.get_display_name())
@@ -654,6 +666,7 @@ class SQLFormatterApp(QMainWindow):
             <li>代码模板填充</li>
             <li>撤销/重做支持</li>
             <li>查找替换功能</li>
+            <li>显示空格和Tab字符</li>
         </ul>
         <br>
         <h3>使用说明:</h3>
@@ -692,3 +705,13 @@ class SQLFormatterApp(QMainWindow):
         # 关闭时清理引用
         self._find_replace_dialog.finished.connect(lambda _: setattr(self, '_find_replace_dialog', None))
         self._find_replace_dialog.show()
+        
+    def toggle_whitespace_visibility(self):
+        """切换空白字符显示状态"""
+        show_whitespace = self.show_whitespace_action.isChecked()
+        
+        # 对所有标签页应用设置
+        for i in range(self.tab_widget.count()):
+            tab_editor = self.tab_widget.widget(i)
+            if tab_editor and hasattr(tab_editor, 'editor'):
+                tab_editor.editor.set_show_whitespace(show_whitespace)
