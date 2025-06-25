@@ -1,86 +1,291 @@
 # SQL编辑器（sapfront-tools）
 
+<div align="center">
+
+![SQL编辑器](icons/Editor.png)
+
+**一个功能强大的SQL编辑和格式化桌面工具**
+
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
+[![PySide6](https://img.shields.io/badge/PySide6-6.9.1+-green.svg)](https://pypi.org/project/PySide6/)
+[![License](https://img.shields.io/badge/License-Internal%20Use-red.svg)](#许可证)
+
+[功能特性](#功能特性) • [快速开始](#快速开始) • [文档](#文档) • [截图展示](#截图展示)
+
+</div>
+
 ## 项目简介
 
-本项目是一个基于 PySide6 的桌面 SQL 编辑与格式化工具，支持 SQL 语法高亮、格式化、Java 代码转换、参数填充、注释对齐、代码模板填充、查找替换等多种实用功能，适用于日常 SQL 编写、调试和代码转换场景。
+SQL编辑器是一个基于PySide6开发的专业桌面SQL编辑工具，专为提高SQL开发效率而设计。它集成了SQL语法高亮、代码格式化、Java代码转换、参数填充、查找替换等多种实用功能，是SQL开发者和数据库管理员的得力助手。
 
-## 主要功能
+## 功能特性
 
-- **SQL 语法高亮**：支持 SQL 关键字、字符串、注释的高亮显示，提升代码可读性。
-- **SQL 格式化**：一键美化 SQL 代码，关键字大写、缩进规范。
-- **Java 代码格式转换**：可将 SQL 转为 Java 字符串拼接代码，或反向还原。
-- **参数填充**：支持将 SQL 中的 `?` 占位符批量替换为实际参数。
-- **注释对齐**：对 Java 代码中的注释进行智能对齐，支持单行和 Javadoc 注释。
-- **代码模板填充**：支持自定义模板批量生成代码。
-- **查找与替换**：支持正则、区分大小写、批量替换等。
-- **撤销/重做**：支持多步撤销与重做。
-- **文件操作**：支持 SQL 文件的打开、保存、另存为。
+### 🎨 编辑体验
+- **语法高亮**: 支持SQL关键字、字符串、注释的智能高亮显示
+- **行号显示**: 左侧行号区域，便于代码定位和调试
+- **深色主题**: 护眼的深色编辑界面，长时间编码不疲劳
+- **撤销重做**: 支持多步撤销与重做，操作更安全
 
-## 安装与依赖
+### 🔧 核心功能
+- **SQL格式化**: 一键美化SQL代码，关键字大写、智能缩进
+- **Java代码转换**: SQL与Java StringBuffer代码双向转换
+- **参数填充**: 批量替换SQL中的`?`占位符为实际参数值
+- **注释对齐**: 智能对齐Java代码中的注释，提升代码美观度
+- **代码模板**: 支持自定义模板批量生成重复性代码
 
-### 依赖环境
-- Python >= 3.13
-- [PySide6](https://pypi.org/project/PySide6/) >= 6.9.1
-- [chardet](https://pypi.org/project/chardet/) >= 5.2.0
-- [sqlparse](https://pypi.org/project/sqlparse/) == 0.4.4
+### 🔍 查找替换
+- **实时高亮**: 自动高亮所有匹配项，可视化查找结果
+- **正则支持**: 强大的正则表达式匹配功能
+- **批量替换**: 支持一键替换所有匹配项
+- **大小写敏感**: 可选的大小写敏感匹配
 
-### 安装依赖
+### 📁 文件管理
+- **智能编码**: 自动检测文件编码，支持UTF-8、GBK等多种格式
+- **文件操作**: 完整的打开、保存、另存为功能
+- **格式支持**: 专门优化SQL文件的读写处理
 
+## 快速开始
+
+### 环境要求
+
+- **Python**: >= 3.13
+- **操作系统**: Windows 10/11, macOS, Linux
+
+### 安装步骤
+
+1. **克隆项目**
+   ```bash
+   git clone <repository-url>
+   cd sapfront-tools
+   ```
+
+2. **安装依赖**
+   ```bash
+   pip install -r requirements.txt
+   ```
+   或使用项目配置安装：
+   ```bash
+   pip install .
+   ```
+
+3. **启动程序**
+   
+   **方式一：Python命令行**
+   ```bash
+   python main.py
+   ```
+   
+   **方式二：Windows批处理**
+   ```bash
+   # 双击运行
+   start_sql_formatter.bat
+   ```
+
+### 快速使用
+
+1. **编写SQL**: 在编辑器中输入或粘贴SQL代码
+2. **格式化**: 按`Ctrl+F`格式化SQL代码
+3. **转换**: 按`Ctrl+J`转换为Java格式
+4. **查找**: 按`Ctrl+H`打开查找替换对话框
+
+## 文档
+
+### 📚 完整文档
+- [📖 用户手册](docs/用户手册.md) - 详细的使用指南和功能说明
+- [🔧 技术文档](docs/技术文档.md) - 架构设计和技术实现
+- [📋 API文档](docs/API文档.md) - 开发者接口参考
+
+### 🎯 快捷键参考
+
+| 功能 | 快捷键 | 说明 |
+|------|--------|------|
+| 打开文件 | `Ctrl+O` | 打开SQL文件 |
+| 保存文件 | `Ctrl+S` | 保存当前文件 |
+| 格式化SQL | `Ctrl+F` | 美化SQL代码 |
+| 转换Java格式 | `Ctrl+J` | SQL转Java代码 |
+| 从Java转回SQL | `Ctrl+K` | Java代码转SQL |
+| 查找替换 | `Ctrl+H` | 打开查找替换 |
+| 填充参数 | `Ctrl+P` | 替换?占位符 |
+| 对齐注释 | `Ctrl+L` | 对齐代码注释 |
+| 代码填充 | `Ctrl+M` | 模板代码生成 |
+
+## 项目结构
+
+```
+sapfront-tools/
+├── 📁 docs/                    # 文档目录
+│   ├── 📄 用户手册.md           # 用户使用指南
+│   ├── 📄 技术文档.md           # 技术架构文档
+│   └── 📄 API文档.md            # 开发者API参考
+├── 📁 icons/                   # 图标资源
+│   ├── 🖼️ app.ico              # 应用程序图标
+│   └── 🖼️ Editor.png           # 编辑器图标
+├── 📄 main.py                  # 🚀 程序入口
+├── 📄 SQLFormatterApp.py       # 🏠 主应用程序
+├── 📄 CodeEditor.py            # ✏️ 代码编辑器
+├── 📄 SQLHighlighter.py        # 🎨 语法高亮器
+├── 📄 FindReplaceDialog.py     # 🔍 查找替换对话框
+├── 📄 pyproject.toml           # ⚙️ 项目配置
+├── 📄 uv.lock                  # 🔒 依赖锁定
+├── 📄 start_sql_formatter.bat  # 🪟 Windows启动脚本
+└── 📄 README.md                # 📖 项目说明
+```
+
+## 截图展示
+
+### 主界面
+```
+┌─────────────────────────────────────────────────────┐
+│ 文件(F)  编辑(E)  工具(T)  帮助(H)                    │
+├─────────────────────────────────────────────────────┤
+│ ┌───┐ ┌───────────────────────────────────────────┐ │
+│ │ 1 │ │ SELECT u.id,                              │ │
+│ │ 2 │ │        u.name,                            │ │
+│ │ 3 │ │        u.email                            │ │
+│ │ 4 │ │ FROM users u                              │ │
+│ │ 5 │ │ WHERE u.status = 'active'                 │ │
+│ │ 6 │ │   AND u.created_date >= '2023-01-01'      │ │
+│ │ 7 │ │ ORDER BY u.created_date DESC              │ │
+│ └───┘ └───────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+```
+
+### 功能演示
+
+**SQL格式化前后对比:**
+```sql
+-- 格式化前
+select id,name,email from users where status='active' and created_date>='2023-01-01'
+
+-- 格式化后
+SELECT id,
+       name,
+       email
+FROM users
+WHERE status = 'active'
+  AND created_date >= '2023-01-01'
+```
+
+**Java代码转换:**
+```java
+// SQL转Java
+StringBuffer sb = new StringBuffer();
+sb.append(" SELECT * FROM users ");
+sb.append(" WHERE id = ? ");
+sb.append(" AND status = 'active' ");
+```
+
+## 技术架构
+
+### 核心技术栈
+- **GUI框架**: PySide6 (Qt6的Python绑定)
+- **SQL解析**: sqlparse 0.4.4
+- **编码检测**: chardet 5.2.0
+- **Python版本**: 3.13+
+
+### 架构特点
+- **模块化设计**: 清晰的模块分离，易于维护和扩展
+- **事件驱动**: 基于Qt信号槽机制的响应式架构
+- **插件友好**: 预留扩展接口，支持功能插件开发
+- **性能优化**: 针对大文件和复杂SQL的性能优化
+
+## 开发指南
+
+### 环境搭建
 ```bash
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装开发依赖
 pip install -r requirements.txt
-```
-或根据 `pyproject.toml` 安装：
-```bash
-pip install .
+pip install -e .
 ```
 
-## 启动方法
+### 代码规范
+- 遵循PEP 8 Python代码规范
+- 使用类型注解提高代码可读性
+- 编写完整的文档字符串
+- 保持模块间的低耦合
 
-### 方式一：命令行启动
+### 扩展开发
+参考[API文档](docs/API文档.md)了解如何：
+- 添加新的语法高亮规则
+- 创建自定义功能插件
+- 扩展文件格式支持
+- 自定义主题和样式
 
-```bash
-python main.py
-```
+## 版本历史
 
-### 方式二：Windows 批处理启动
+### v1.0.0 (2025年)
+- ✨ 初始版本发布
+- 🎨 SQL语法高亮支持
+- 🔧 SQL格式化功能
+- 🔄 Java代码转换
+- 🔍 查找替换功能
+- 📁 文件操作支持
+- ⚡ 参数填充和代码模板
 
-双击 `start_sql_formatter.bat` 即可。
+## 贡献指南
 
-## 目录结构说明
+我们欢迎社区贡献！请遵循以下步骤：
 
-- `main.py`：程序入口，启动主窗口。
-- `SQLFormatterApp.py`：主界面与核心逻辑，集成所有功能。
-- `CodeEditor.py`：自定义代码编辑器，支持行号显示。
-- `SQLHighlighter.py`：SQL 语法高亮模块。
-- `FindReplaceDialog.py`：查找与替换对话框。
-- `icons/`：图标资源。
-- `pyproject.toml`、`uv.lock`：依赖与环境配置。
+1. **Fork项目** 到您的GitHub账户
+2. **创建特性分支** (`git checkout -b feature/AmazingFeature`)
+3. **提交更改** (`git commit -m 'Add some AmazingFeature'`)
+4. **推送分支** (`git push origin feature/AmazingFeature`)
+5. **创建Pull Request**
 
-## 主要模块说明
+### 贡献类型
+- 🐛 Bug修复
+- ✨ 新功能开发
+- 📚 文档改进
+- 🎨 UI/UX优化
+- ⚡ 性能优化
 
-### 1. SQLFormatterApp
-- 主窗口类，集成菜单栏、编辑区、功能按钮。
-- 支持 SQL 格式化、Java 转换、参数填充、注释对齐、模板填充、查找替换等。
-- 支持文件的打开、保存、另存为。
+## 常见问题
 
-### 2. CodeEditor
-- 继承自 QPlainTextEdit，支持左侧行号显示。
-- 响应窗口缩放、滚动等事件，自动调整行号区宽度。
+### Q: 程序启动失败怎么办？
+**A**: 请检查Python版本(>=3.13)和依赖包安装情况，尝试重新安装PySide6。
 
-### 3. SQLHighlighter
-- 继承 QSyntaxHighlighter，实现 SQL 关键字、字符串、注释的高亮。
-- 支持主流 SQL 关键字。
+### Q: 文件打开时出现乱码？
+**A**: 程序会自动检测编码，如仍有问题，建议将文件转换为UTF-8编码。
 
-### 4. FindReplaceDialog
-- 查找与替换对话框，支持正则、区分大小写、批量替换。
-- 实时高亮所有匹配项，支持定位、替换当前/全部。
+### Q: 如何添加自定义SQL关键字？
+**A**: 修改`SQLHighlighter.py`中的`keywords`列表，添加新的关键字。
+
+更多问题请参考[用户手册](docs/用户手册.md)的常见问题章节。
+
+## 技术支持
+
+- 📧 **邮箱**: zhongliang.liu@lixil.com
+- 📖 **文档**: 查看`docs/`目录下的详细文档
+- 🐛 **Bug报告**: 在项目仓库中提交Issue
+- 💡 **功能建议**: 欢迎提交Feature Request
 
 ## 作者信息
 
-- 作者：刘忠亮
-- 邮箱：zhongliang.liu@lixil.com
-- 开发时间：2025年
+<div align="center">
+
+**刘忠亮**
+*软件开发工程师*
+
+📧 zhongliang.liu@lixil.com
+🗓️ 开发时间：2025年
+
+</div>
 
 ## 许可证
 
 本项目仅供学习与内部使用，禁止商业用途。
+
+---
+
+<div align="center">
+
+**感谢使用SQL编辑器！**
+*如果这个项目对您有帮助，请给我们一个⭐*
+
+[⬆ 回到顶部](#sql编辑器sapfront-tools)
+
+</div>
