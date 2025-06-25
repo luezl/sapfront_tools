@@ -1,9 +1,9 @@
-from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog, QFileDialog, 
+from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog, QFileDialog,
                               QVBoxLayout, QWidget, QHBoxLayout, QMessageBox, QPlainTextEdit,
-                              QMenu)  
-from PySide6.QtGui import (QFont, QColor, QTextCharFormat, QSyntaxHighlighter, QIcon, 
-                          QUndoStack, QKeySequence, QAction, QTextCursor, QTextDocument)  
-from PySide6.QtCore import Qt, QRect
+                              QMenu, QTabWidget, QPushButton, QLabel, QTabBar)
+from PySide6.QtGui import (QFont, QColor, QTextCharFormat, QSyntaxHighlighter, QIcon,
+                          QUndoStack, QKeySequence, QAction, QTextCursor, QTextDocument, QPainter)
+from PySide6.QtCore import Qt, QRect, Signal, QSize
 import sqlparse
 import chardet
 import re
@@ -13,12 +13,82 @@ from FindReplaceDialog import FindReplaceDialog
 import os
 
 
+
+
+class TabEditor(QWidget):
+    """单个标签页编辑器组件"""
+    
+    def __init__(self, file_path=None, content=""):
+        super().__init__()
+        self.file_path = file_path
+        self.is_modified = False
+        
+        # 创建布局
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 创建代码编辑器
+        self.editor = CodeEditor()
+        self.editor.setStyleSheet('''
+            QPlainTextEdit {
+                font-family: Consolas;
+                font-size: 11pt;
+                background-color: #2b2b2b;
+                color: #a9b7c6;
+                padding: 10px;
+            }
+        ''')
+        
+        # 设置内容
+        if content:
+            self.editor.setPlainText(content)
+        
+        # 添加语法高亮
+        self.highlighter = SQLHighlighter(self.editor.document())
+        
+        # 监听文本变化
+        self.editor.textChanged.connect(self.on_text_changed)
+        
+        layout.addWidget(self.editor)
+        
+    def on_text_changed(self):
+        """文本变化时标记为已修改"""
+        self.is_modified = True
+        
+    def get_display_name(self):
+        """获取显示名称"""
+        if self.file_path:
+            name = os.path.basename(self.file_path)
+        else:
+            name = "未命名"
+        
+        if self.is_modified:
+            name += " *"
+        
+        return name
+        
+    def save(self, file_path=None):
+        """保存文件"""
+        if file_path:
+            self.file_path = file_path
+            
+        if self.file_path:
+            try:
+                with open(self.file_path, 'w', encoding='utf-8') as f:
+                    f.write(self.editor.toPlainText())
+                self.is_modified = False
+                return True
+            except Exception as e:
+                return False
+        return False
+
+
 class SQLFormatterApp(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("SQL编辑器")  # 设置主窗口标题
-        self.resize(800, 600)  # 设置初始窗口尺寸
+        self.resize(1000, 700)  # 设置初始窗口尺寸，稍大以适应多标签页
          # 设置窗口图标
         current_dir = os.path.dirname(os.path.abspath(__file__))  # 获取当前文件所在目录
         icon_path = os.path.join(current_dir, "icons", "Editor.png")  # 构建完整路径
@@ -29,37 +99,72 @@ class SQLFormatterApp(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
-                
-        # 初始化文本编辑器
-        # self.sql_text_edit = QPlainTextEdit()
-        self.sql_text_edit = CodeEditor()
-        self.sql_text_edit.setStyleSheet('''
-            QPlainTextEdit {
-                font-family: Consolas;
-                font-size: 11pt;
-                background-color: #2b2b2b;
-                color: #a9b7c6;
-                padding: 10px;
+        
+        # 创建标签页组件
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabsClosable(True)  # 允许关闭标签页
+        self.tab_widget.setMovable(True)  # 允许拖拽标签页
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        
+        # 创建新建标签页按钮
+        self.new_tab_button = QPushButton("＋")
+        self.new_tab_button.setFixedSize(28, 28)
+        self.new_tab_button.setToolTip("新建标签页 (Ctrl+N)")
+        self.new_tab_button.clicked.connect(self.new_tab)
+        self.new_tab_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #858585;
+                border: none;
+                border-radius: 14px;
+                font-size: 14px;
+                font-weight: normal;
+                margin: 2px;
             }
-        ''')
-        layout.addWidget(self.sql_text_edit)
-
-
-
+            QPushButton:hover {
+                background-color: #404040;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+            QPushButton:pressed {
+                background-color: #2a2a2a;
+                color: #ffffff;
+            }
+        """)
+        
+        # 将按钮设置为标签栏的角落组件
+        self.tab_widget.setCornerWidget(self.new_tab_button)
+        
+        layout.addWidget(self.tab_widget)
+        
+        # 创建第一个标签页
+        self.new_tab()
 
         # 初始化菜单栏
+        self.setup_menus()
+        
+        # 添加撤销/重做功能
+        self.undo_stack = QUndoStack(self)
+        self.setup_undo_redo_actions()
+
+    def setup_menus(self):
+        """设置菜单栏"""
+        # 文件菜单
         file_menu = self.menuBar().addMenu('文件(&F)')
+        file_menu.addAction('新建', self.new_tab).setShortcut('Ctrl+N')
         file_menu.addAction('打开', self.open_file).setShortcut('Ctrl+O')
-        file_menu.addAction('保存', self.save_file).setShortcut('Ctrl+S')
         file_menu.addSeparator()
+        file_menu.addAction('保存', self.save_file).setShortcut('Ctrl+S')
+        file_menu.addAction('另存为', self.save_as_file).setShortcut('Ctrl+Shift+S')
+        file_menu.addSeparator()
+        file_menu.addAction('关闭标签页', self.close_current_tab).setShortcut('Ctrl+W')
         file_menu.addAction('退出', self.exit_app).setShortcut('Ctrl+Q')
         
         # 编辑菜单
         edit_menu = self.menuBar().addMenu('编辑(&E)')
         edit_menu.addAction('查找替换', self.show_find_replace_dialog).setShortcut('Ctrl+H')
 
-        self.current_file = None
-
+        # 工具菜单
         tool_menu = self.menuBar().addMenu('工具(&T)')
         tool_menu.addAction('格式化SQL', self.format_sql).setShortcut('Ctrl+F')
         tool_menu.addAction('转换Java格式', self.convert_to_java_format).setShortcut('Ctrl+J')
@@ -71,97 +176,145 @@ class SQLFormatterApp(QMainWindow):
         # 帮助菜单
         help_menu = self.menuBar().addMenu('帮助(&H)')
         help_menu.addAction('关于', self.show_about).setShortcut('F1')
-
-        # 删除原有按钮相关代码
-        self.highlighter = SQLHighlighter(self.sql_text_edit.document())
         
-        # 然后创建布局和菜单
-        self.editor_widget = QWidget()
-        self.editor_layout = QHBoxLayout()
-        self.editor_layout.setContentsMargins(0, 0, 0, 0)
-        self.editor_layout.setSpacing(0)
-
-        # 行号区域
-        self.line_number_area = QWidget()
-        self.line_number_area.setFixedWidth(40)
-        self.line_number_area.setStyleSheet("""
-            background-color: #252526;
-            color: #858585;
-            font-family: Consolas;
-            font-size: 13px;
-            padding-right: 5px;
-        """)
-
-         # 添加撤销/重做功能
-        self.undo_stack = QUndoStack(self)  # 新增
-        self.setup_undo_redo_actions()  # 新增
-
-        # 文本编辑区域
-        # self.sql_text_edit = QTextEdit()
-        # self.sql_text_edit.setFont(QFont("Consolas", 12))
-        # self.sql_text_edit.setStyleSheet("padding: 10px;")
-        # self.sql_text_edit.setFixedHeight(470)
+    def new_tab(self, file_path=None, content=""):
+        """创建新标签页"""
+        tab_editor = TabEditor(file_path, content)
         
-        # 删除以下按钮定义
-        # self.format_button = QPushButton("格式化SQL")
-        # self.java_format_button = QPushButton("转换为Java格式")
-        # self.reverse_button = QPushButton("从Java转回SQL")
-        # self.fill_params_button = QPushButton("填充参数")
-        # self.align_comments_button = QPushButton("对齐注释")
+        # 监听文本变化以更新标签页标题
+        tab_editor.editor.textChanged.connect(lambda: self.update_tab_title(tab_editor))
         
-        # 删除按钮事件连接
-        # self.format_button.clicked.connect(self.format_sql)
-        # self.java_format_button.clicked.connect(self.convert_to_java_format)
-        # self.reverse_button.clicked.connect(self.convert_back_to_sql)
-        # self.fill_params_button.clicked.connect(self.fill_sql_parameters)
-        # self.align_comments_button.clicked.connect(self.align_comments)
+        # 添加标签页
+        index = self.tab_widget.addTab(tab_editor, tab_editor.get_display_name())
+        self.tab_widget.setCurrentIndex(index)
+        
+        # 更新窗口标题
+        self.update_window_title()
+        
+        return tab_editor
+        
+            
+    def close_tab(self, index):
+        """关闭指定标签页"""
+        if self.tab_widget.count() <= 1:
+            # 如果只有一个标签页，创建新的空标签页
+            self.new_tab()
+            
+        tab_editor = self.tab_widget.widget(index)
+        
+        # 检查是否有未保存的更改
+        if tab_editor.is_modified:
+            reply = QMessageBox.question(
+                self, '确认关闭',
+                f'文件 "{tab_editor.get_display_name()}" 有未保存的更改，是否保存？',
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+            
+            if reply == QMessageBox.Save:
+                if not self.save_tab(tab_editor):
+                    return  # 保存失败，不关闭
+            elif reply == QMessageBox.Cancel:
+                return  # 取消关闭
+                
+        self.tab_widget.removeTab(index)
+        self.update_window_title()
+        
+    def close_current_tab(self):
+        """关闭当前标签页"""
+        current_index = self.tab_widget.currentIndex()
+        if current_index >= 0:
+            self.close_tab(current_index)
+            
+    def get_current_editor(self):
+        """获取当前活动的编辑器"""
+        current_tab = self.tab_widget.currentWidget()
+        if current_tab:
+            return current_tab.editor
+        return None
+        
+    def get_current_tab_editor(self):
+        """获取当前活动的标签页编辑器"""
+        return self.tab_widget.currentWidget()
+        
+    def update_tab_title(self, tab_editor):
+        """更新标签页标题"""
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.widget(i) == tab_editor:
+                self.tab_widget.setTabText(i, tab_editor.get_display_name())
+                break
+        self.update_window_title()
+        
+    def update_window_title(self):
+        """更新窗口标题"""
+        current_tab = self.get_current_tab_editor()
+        if current_tab and current_tab.file_path:
+            self.setWindowTitle(f"SQL编辑器 - {current_tab.file_path}")
+        else:
+            self.setWindowTitle("SQL编辑器")
     def setup_undo_redo_actions(self):
         """设置撤销和重做操作"""
         # 撤销动作
         undo_action = QAction("撤销", self)
         undo_action.setShortcut(QKeySequence.Undo)
-        undo_action.triggered.connect(self.sql_text_edit.undo)
+        undo_action.triggered.connect(self.undo_current)
         
         # 重做动作
         redo_action = QAction("重做", self)
         redo_action.setShortcut(QKeySequence.Redo)
-        redo_action.triggered.connect(self.sql_text_edit.redo)
+        redo_action.triggered.connect(self.redo_current)
         
-        # 获取工具菜单（确保名称完全匹配，包括'&'符号）
+        # 获取编辑菜单
         menu_bar = self.menuBar()
         for menu in menu_bar.findChildren(QMenu):
             if menu.title() == '编辑(&E)':
                 menu.addAction(undo_action)
                 menu.addAction(redo_action)
                 return
-        
-        # 如果没有找到工具菜单，就添加到编辑菜单
-        edit_menu = menu_bar.addMenu('编辑(&E)')
-        edit_menu.addAction(undo_action)
-        edit_menu.addAction(redo_action)
+                
+    def undo_current(self):
+        """撤销当前编辑器的操作"""
+        editor = self.get_current_editor()
+        if editor:
+            editor.undo()
+            
+    def redo_current(self):
+        """重做当前编辑器的操作"""
+        editor = self.get_current_editor()
+        if editor:
+            editor.redo()
 
     def format_sql(self):
-        sql = self.sql_text_edit.toPlainText()
+        """格式化当前标签页的SQL"""
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
+        sql = editor.toPlainText()
         try:
             # Format SQL with uppercase keywords
             formatted_sql = sqlparse.format(sql,
-                reindent=True, 
+                reindent=True,
                 keyword_case='upper',
                 strip_comments=True,
                 use_space_around_operators=True,
                 comma_first=True
             )
             # 使用 QTextCursor 替换文本，支持撤销功能
-            cursor = self.sql_text_edit.textCursor()
+            cursor = editor.textCursor()
             cursor.beginEditBlock()
             cursor.select(cursor.SelectionType.Document)
             cursor.insertText(formatted_sql)
             cursor.endEditBlock()
         except Exception as e:
-            print(f"Error formatting SQL: {e}")
+            QMessageBox.critical(self, '格式化错误', f'SQL格式化失败: {str(e)}')
 
     def convert_to_java_format(self):
-        sql = self.sql_text_edit.toPlainText()
+        """将当前标签页的SQL转换为Java格式"""
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
+        sql = editor.toPlainText()
         if not sql:
             return
         
@@ -177,7 +330,7 @@ class SQLFormatterApp(QMainWindow):
             java_code += f'sb.append(" {escaped_line} ");\n'
         
         # 使用 QTextCursor 替换文本，支持撤销功能
-        cursor = self.sql_text_edit.textCursor()
+        cursor = editor.textCursor()
         cursor.beginEditBlock()
         cursor.select(cursor.SelectionType.Document)
         cursor.insertText(java_code)
@@ -196,7 +349,12 @@ class SQLFormatterApp(QMainWindow):
         无
     """
     def convert_back_to_sql(self):
-        java_code = self.sql_text_edit.toPlainText()
+        """从Java格式转回SQL"""
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
+        java_code = editor.toPlainText()
         lines = java_code.splitlines()
         result_lines = []
         
@@ -219,10 +377,9 @@ class SQLFormatterApp(QMainWindow):
             
         sql = "\n".join(result_lines)
         
-       
         if sql:
             # 使用 QTextCursor 替换文本，支持撤销功能
-            cursor = self.sql_text_edit.textCursor()
+            cursor = editor.textCursor()
             cursor.beginEditBlock()
             cursor.select(cursor.SelectionType.Document)
             cursor.insertText(sql)
@@ -241,8 +398,12 @@ class SQLFormatterApp(QMainWindow):
         返回值:
             无
         """
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
         # 获取当前SQL语句
-        sql = self.sql_text_edit.toPlainText()
+        sql = editor.toPlainText()
         if not sql:
             return
 
@@ -265,7 +426,7 @@ class SQLFormatterApp(QMainWindow):
             sql = sql.replace('?', f"'{param}'", 1)  # 只替换第一个匹配项
         
         # 使用 QTextCursor 替换文本，支持撤销功能
-        cursor = self.sql_text_edit.textCursor()
+        cursor = editor.textCursor()
         cursor.beginEditBlock()
         cursor.select(cursor.SelectionType.Document)
         cursor.insertText(sql)
@@ -285,8 +446,12 @@ class SQLFormatterApp(QMainWindow):
         返回值:
             无
         """
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
         # 获取当前文本
-        java_code = self.sql_text_edit.toPlainText()
+        java_code = editor.toPlainText()
         if not java_code:
             return
 
@@ -323,7 +488,7 @@ class SQLFormatterApp(QMainWindow):
         
         # 使用 QTextCursor 替换文本，支持撤销功能
         aligned_java_code = '\n'.join(result_lines)
-        cursor = self.sql_text_edit.textCursor()
+        cursor = editor.textCursor()
         cursor.beginEditBlock()
         cursor.select(cursor.SelectionType.Document)
         cursor.insertText(aligned_java_code)
@@ -342,12 +507,16 @@ class SQLFormatterApp(QMainWindow):
         返回值:
             无
         """
+        editor = self.get_current_editor()
+        if not editor:
+            return
+            
         # 创建多行输入对话框
         # 使用 getMultiLineText 方法创建多行输入对话框
         template, ok = QInputDialog.getMultiLineText(
-            self, 
-            '输入模板', 
-            '请输入代码模板（使用{0}, {1}作为占位符）:', 
+            self,
+            '输入模板',
+            '请输入代码模板（使用{0}, {1}作为占位符）:',
             ''
         )
             
@@ -355,7 +524,7 @@ class SQLFormatterApp(QMainWindow):
             return
 
         # 获取当前文本编辑器的内容
-        text = self.sql_text_edit.toPlainText()
+        text = editor.toPlainText()
         if not text:
             return
 
@@ -381,7 +550,7 @@ class SQLFormatterApp(QMainWindow):
 
         # 使用 QTextCursor 替换文本，这样可以支持撤销功能
         if result_lines:
-            cursor = self.sql_text_edit.textCursor()
+            cursor = editor.textCursor()
             # 开始复合编辑操作，这样整个替换操作会被视为一个撤销步骤
             cursor.beginEditBlock()
             # 选择所有文本
@@ -392,6 +561,7 @@ class SQLFormatterApp(QMainWindow):
             cursor.endEditBlock()
 
     def open_file(self):
+        """打开文件到新标签页"""
         file_path, _ = QFileDialog.getOpenFileName(self, '打开文件', '', 'SQL Files (*.sql);;All Files (*)')
         if file_path:
             try:
@@ -411,32 +581,53 @@ class SQLFormatterApp(QMainWindow):
                         detected = chardet.detect(raw_data)
                         text = raw_data.decode(detected['encoding'] or 'gb18030', errors='replace')
                 
-                # 使用 QTextCursor 替换文本，支持撤销功能
-                cursor = self.sql_text_edit.textCursor()
-                cursor.beginEditBlock()
-                cursor.select(cursor.SelectionType.Document)
-                cursor.insertText(text)
-                cursor.endEditBlock()
+                # 创建新标签页并设置内容
+                tab_editor = self.new_tab(file_path, text)
+                tab_editor.is_modified = False  # 刚打开的文件标记为未修改
+                self.update_tab_title(tab_editor)
                 
             except Exception as e:
                 QMessageBox.critical(self, '打开失败', f'文件解码失败: {str(e)}')
-            self.current_file = file_path
-            self.setWindowTitle(f'SQL编辑器 - {file_path}')
     
     def save_file(self):
-        if self.current_file:
-            with open(self.current_file, 'w', encoding='utf-8') as f:
-                f.write(self.sql_text_edit.toPlainText())
+        """保存当前标签页的文件"""
+        current_tab = self.get_current_tab_editor()
+        if not current_tab:
+            return
+            
+        if current_tab.file_path:
+            if current_tab.save():
+                self.update_tab_title(current_tab)
+                self.update_window_title()
+            else:
+                QMessageBox.critical(self, '保存失败', '文件保存失败')
         else:
             self.save_as_file()
     
     def save_as_file(self):
+        """另存为当前标签页的文件"""
+        current_tab = self.get_current_tab_editor()
+        if not current_tab:
+            return
+            
         file_path, _ = QFileDialog.getSaveFileName(self, '另存为', '', 'SQL Files (*.sql);;All Files (*)')
         if file_path:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(self.sql_text_edit.toPlainText())
-            self.current_file = file_path
-            self.setWindowTitle(f'SQL编辑器 - {file_path}')
+            if current_tab.save(file_path):
+                self.update_tab_title(current_tab)
+                self.update_window_title()
+            else:
+                QMessageBox.critical(self, '保存失败', '文件保存失败')
+                
+    def save_tab(self, tab_editor):
+        """保存指定标签页"""
+        if tab_editor.file_path:
+            return tab_editor.save()
+        else:
+            # 如果没有文件路径，弹出另存为对话框
+            file_path, _ = QFileDialog.getSaveFileName(self, '保存文件', '', 'SQL Files (*.sql);;All Files (*)')
+            if file_path:
+                return tab_editor.save(file_path)
+        return False
     
     def exit_app(self):
         QApplication.instance().quit()
@@ -449,11 +640,12 @@ class SQLFormatterApp(QMainWindow):
         """
         about_text = """
         <h2>SQL编辑器</h2>
-        <p><b>版本:</b> 1.0.0</p>
+        <p><b>版本:</b> 1.1.0</p>
         <p><b>描述:</b> 一个功能强大的SQL编辑和格式化工具</p>
         <br>
         <h3>功能特性:</h3>
         <ul>
+            <li>多标签页支持 - 同时编辑多个文件</li>
             <li>SQL语法高亮显示</li>
             <li>SQL代码格式化</li>
             <li>Java代码格式转换</li>
@@ -461,6 +653,15 @@ class SQLFormatterApp(QMainWindow):
             <li>注释对齐功能</li>
             <li>代码模板填充</li>
             <li>撤销/重做支持</li>
+            <li>查找替换功能</li>
+        </ul>
+        <br>
+        <h3>使用说明:</h3>
+        <ul>
+            <li>Ctrl+N: 新建标签页</li>
+            <li>Ctrl+O: 打开文件到新标签页</li>
+            <li>Ctrl+W: 关闭当前标签页</li>
+            <li>点击标签栏+按钮: 创建新标签页</li>
         </ul>
         <br>
         <h3>作者信息:</h3>
@@ -477,13 +678,17 @@ class SQLFormatterApp(QMainWindow):
         显示查找替换对话框（非模态）
         如果当前有选中的文本，会自动填充到查找框中
         """
+        current_editor = self.get_current_editor()
+        if not current_editor:
+            return
+            
         # 如果已存在查找替换窗口且未关闭，则激活它
         if hasattr(self, '_find_replace_dialog') and self._find_replace_dialog is not None:
             self._find_replace_dialog.activateWindow()
             self._find_replace_dialog.raise_()
             return
         # 创建新对话框
-        self._find_replace_dialog = FindReplaceDialog(self, self.sql_text_edit)
+        self._find_replace_dialog = FindReplaceDialog(self, current_editor)
         # 关闭时清理引用
         self._find_replace_dialog.finished.connect(lambda _: setattr(self, '_find_replace_dialog', None))
-        self._find_replace_dialog.show() 
+        self._find_replace_dialog.show()
