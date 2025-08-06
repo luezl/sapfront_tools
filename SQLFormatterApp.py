@@ -652,7 +652,7 @@ class SQLFormatterApp(QMainWindow):
         """
         about_text = """
         <h2>SQL编辑器</h2>
-        <p><b>版本:</b> 1.1.0</p>
+        <p><b>版本:</b> 1.1.1</p>
         <p><b>描述:</b> 一个功能强大的SQL编辑和格式化工具</p>
         <br>
         <h3>功能特性:</h3>
@@ -667,6 +667,8 @@ class SQLFormatterApp(QMainWindow):
             <li>撤销/重做支持</li>
             <li>查找替换功能</li>
             <li>显示空格和Tab字符</li>
+            <li>缩进操作支持</li>
+            <li>大小写转换功能</li>
         </ul>
         <br>
         <h3>使用说明:</h3>
@@ -674,6 +676,10 @@ class SQLFormatterApp(QMainWindow):
             <li>Ctrl+N: 新建标签页</li>
             <li>Ctrl+O: 打开文件到新标签页</li>
             <li>Ctrl+W: 关闭当前标签页</li>
+            <li>Tab: 选中多行增加缩进</li>
+            <li>Shift+Tab: 选中多行减少缩进</li>
+            <li>Ctrl+Shift+U: 选中文本转大写</li>
+            <li>Ctrl+Shift+L: 选中文本转小写</li>
             <li>点击标签栏+按钮: 创建新标签页</li>
         </ul>
         <br>

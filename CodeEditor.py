@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
-from PySide6.QtGui import QTextFormat, QPainter, QColor, QTextOption, QPen, QFont, QTextLayout
+from PySide6.QtGui import QTextFormat, QPainter, QColor, QTextOption, QPen, QFont, QTextLayout, QKeyEvent, QTextCursor
 from PySide6.QtCore import Qt, QRect, QSize, QPointF
 
 class PreciseWhitespaceRenderer:
@@ -412,3 +412,158 @@ class CodeEditor(QPlainTextEdit):
             top = bottom
             bottom = top + self.blockBoundingGeometry(block).height()
             block_number += 1
+    
+    def keyPressEvent(self, event):
+        """
+        重写键盘事件处理，添加自定义快捷键功能
+        
+        Args:
+            event (QKeyEvent): 键盘事件
+        """
+        # 处理 Tab/Shift+Tab 缩进
+        if event.key() == Qt.Key_Tab or event.key() == Qt.Key_Backtab:
+            # Qt.Key_Backtab 是 Shift+Tab 的另一种表示
+            if event.key() == Qt.Key_Backtab or (event.key() == Qt.Key_Tab and event.modifiers() & Qt.ShiftModifier):
+                # Shift+Tab: 减少缩进（无论是否有选中文本）
+                if self.textCursor().hasSelection():
+                    self.unindent_selection()
+                # 无论是否有选中文本，都要阻止默认行为
+                event.accept()
+                return
+            elif event.key() == Qt.Key_Tab and self.textCursor().hasSelection():
+                # Tab: 增加缩进（仅在有选中文本时）
+                self.indent_selection()
+                event.accept()
+                return
+        
+        # 处理 Ctrl+Shift+U (大写)
+        elif (event.key() == Qt.Key_U and
+              event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier)):
+            self.convert_selection_to_upper()
+            event.accept()
+            return
+        
+        # 处理 Ctrl+Shift+L (小写)
+        elif (event.key() == Qt.Key_L and
+              event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier)):
+            self.convert_selection_to_lower()
+            event.accept()
+            return
+        
+        # 其他按键交给父类处理
+        super().keyPressEvent(event)
+    
+    def indent_selection(self):
+        """
+        对选中的行增加缩进（在每行开头添加4个空格）
+        """
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        
+        # 获取选中区域的起始和结束位置
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        
+        # 移动到选中区域的开始行
+        cursor.setPosition(start)
+        cursor.movePosition(QTextCursor.StartOfBlock)
+        
+        # 记录处理前的选中区域
+        first_block_pos = cursor.position()
+        
+        # 处理每一行
+        while cursor.position() <= end and not cursor.atEnd():
+            # 在行首插入4个空格
+            cursor.insertText("    ")
+            # 更新结束位置（因为插入了字符）
+            end += 4
+            
+            # 移动到下一行
+            if not cursor.movePosition(QTextCursor.NextBlock):
+                break
+        
+        # 恢复选中状态
+        cursor.setPosition(first_block_pos)
+        cursor.setPosition(end, QTextCursor.KeepAnchor)
+        
+        cursor.endEditBlock()
+        self.setTextCursor(cursor)
+    
+    def unindent_selection(self):
+        """
+        对选中的行减少缩进（删除每行开头的最多4个空格或1个Tab）
+        """
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        
+        # 获取选中区域的起始和结束位置
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        
+        # 移动到选中区域的开始行
+        cursor.setPosition(start)
+        cursor.movePosition(QTextCursor.StartOfBlock)
+        
+        # 记录处理前的选中区域
+        first_block_pos = cursor.position()
+        
+        # 处理每一行
+        while cursor.position() <= end and not cursor.atEnd():
+            # 保存当前位置
+            current_pos = cursor.position()
+            
+            # 获取当前行的文本
+            cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+            line_text = cursor.selectedText()
+            cursor.setPosition(current_pos)  # 回到行首
+            
+            # 计算要删除的字符数
+            chars_to_remove = 0
+            
+            # 如果行首是Tab，删除一个Tab
+            if line_text and line_text[0] == '\t':
+                chars_to_remove = 1
+            else:
+                # 否则删除最多4个空格
+                for i, char in enumerate(line_text):
+                    if char == ' ' and i < 4:
+                        chars_to_remove += 1
+                    else:
+                        break
+            
+            # 删除字符
+            if chars_to_remove > 0:
+                cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor, chars_to_remove)
+                cursor.removeSelectedText()
+                # 更新结束位置
+                end -= chars_to_remove
+            
+            # 移动到下一行
+            cursor.movePosition(QTextCursor.StartOfBlock)
+            if not cursor.movePosition(QTextCursor.NextBlock):
+                break
+        
+        # 恢复选中状态
+        cursor.setPosition(first_block_pos)
+        cursor.setPosition(max(first_block_pos, end), QTextCursor.KeepAnchor)
+        
+        cursor.endEditBlock()
+        self.setTextCursor(cursor)
+    
+    def convert_selection_to_upper(self):
+        """
+        将选中的文本转换为大写
+        """
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            selected_text = cursor.selectedText()
+            cursor.insertText(selected_text.upper())
+    
+    def convert_selection_to_lower(self):
+        """
+        将选中的文本转换为小写
+        """
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            selected_text = cursor.selectedText()
+            cursor.insertText(selected_text.lower())
