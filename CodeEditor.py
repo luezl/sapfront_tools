@@ -23,7 +23,7 @@ class PreciseWhitespaceRenderer:
     
     def draw_block_whitespace_precise(self, painter, block, block_rect):
         """
-        使用 QTextLayout 精确绘制空白字符
+        使用QTextDocument的原生绘制功能精确绘制空白字符
         
         Args:
             painter (QPainter): 绘制器
@@ -34,12 +34,273 @@ class PreciseWhitespaceRenderer:
         if not text:
             return
         
-        # 先尝试简单的回退方案，确保能显示空白字符
-        self._draw_whitespace_fallback(painter, text, block_rect)
+        # 使用最简单直接的方法：创建临时文档并绘制
+        try:
+            self._draw_whitespace_with_temp_document(painter, text, block_rect)
+        except Exception:
+            # 如果失败，使用fallback方案
+            self._draw_whitespace_fallback(painter, text, block_rect)
+    
+    def _draw_whitespace_with_temp_document(self, painter, text, block_rect):
+        """
+        使用临时QTextDocument获取绝对精确的字符位置
+        
+        Args:
+            painter (QPainter): 绘制器
+            text (str): 文本内容
+            block_rect (QRectF): 块矩形区域
+        """
+        from PySide6.QtGui import QTextDocument
+        
+        # 创建临时文档，使用与编辑器完全相同的设置
+        temp_doc = QTextDocument()
+        temp_doc.setDefaultFont(self.editor.font())
+        temp_doc.setPlainText(text)
+        
+        # 设置文档的默认文本选项
+        option = QTextOption()
+        option.setTabStopDistance(self.editor.tabStopDistance())
+        temp_doc.setDefaultTextOption(option)
+        
+        # 获取文档的第一个块
+        temp_block = temp_doc.firstBlock()
+        if not temp_block.isValid():
+            return
+        
+        # 创建临时布局
+        layout = temp_block.layout()
+        if layout.lineCount() == 0:
+            # 如果没有布局，强制创建
+            layout.beginLayout()
+            line = layout.createLine()
+            line.setLineWidth(10000)  # 设置足够大的宽度
+            layout.endLayout()
+        
+        if layout.lineCount() == 0:
+            return
+            
+        line = layout.lineAt(0)
+        if not line.isValid():
+            return
+        
+        fm = self.editor.fontMetrics()
+        baseline_y = block_rect.top() + fm.ascent()
+        
+        # 设置画刷和画笔
+        painter.setBrush(self.editor.whitespace_color)
+        
+        # 检查是否有空白字符需要绘制
+        has_whitespace = any(c in [' ', '\t'] for c in text)
+        drawn_any = False
+        
+        # 现在获取每个字符的精确位置
+        for i, char in enumerate(text):
+            if char in [' ', '\t']:
+                try:
+                    # 使用QTextLine的cursorToX方法获取精确位置
+                    char_x = line.cursorToX(i)
+                    next_char_x = line.cursorToX(i + 1)
+                    
+                    if char_x < 0 or next_char_x < 0 or char_x >= next_char_x:
+                        continue
+                    
+                    # 转换为实际屏幕坐标
+                    screen_x = block_rect.left() + char_x
+                    screen_next_x = block_rect.left() + next_char_x
+                    
+                    if char == ' ':
+                        # 绘制空格点
+                        center_x = screen_x + (screen_next_x - screen_x) / 2
+                        center_y = baseline_y - fm.height() / 4
+                        painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                        drawn_any = True
+                    
+                    elif char == '\t':
+                        # 绘制 tab 箭头，两边留出3px空隙
+                        arrow_y = baseline_y - fm.height() / 4
+                        arrow_start_x = screen_x + 3
+                        arrow_end_x = screen_next_x - 3
+                        
+                        # 确保箭头有最小长度
+                        if arrow_end_x <= arrow_start_x:
+                            arrow_end_x = arrow_start_x + 8
+                        
+                        # 绘制箭头主体
+                        painter.drawLine(int(arrow_start_x), int(arrow_y), 
+                                       int(arrow_end_x), int(arrow_y))
+                        # 绘制箭头头部
+                        painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                       int(arrow_end_x - 4), int(arrow_y - 2))
+                        painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                       int(arrow_end_x - 4), int(arrow_y + 2))
+                        drawn_any = True
+                        
+                except Exception:
+                    continue
+        
+        # 恢复画刷
+        painter.setBrush(Qt.NoBrush)
+        
+        # 如果有空白字符但没有绘制任何内容，抛出异常使用fallback
+        if has_whitespace and not drawn_any:
+            raise Exception("Failed to draw any whitespace with temp document")
+    
+    def _draw_whitespace_using_painter_metrics(self, painter, text, block_rect):
+        """
+        使用QPainter的文本度量方法获取精确位置
+        
+        Args:
+            painter (QPainter): 绘制器
+            text (str): 文本内容
+            block_rect (QRectF): 块矩形区域
+        """
+        # 设置painter的字体与编辑器一致
+        painter.setFont(self.editor.font())
+        fm = painter.fontMetrics()
+        baseline_y = block_rect.top() + fm.ascent()
+        
+        # 设置画刷和画笔
+        painter.setBrush(self.editor.whitespace_color)
+        
+        # 创建文本选项，设置tab停止距离
+        tab_stops = int(self.editor.tabStopDistance() / fm.horizontalAdvance(' '))
+        
+        drawn_any = False
+        for i, char in enumerate(text):
+            if char in [' ', '\t']:
+                # 获取到当前字符位置的文本
+                text_to_char = text[:i]
+                text_to_next = text[:i+1]
+                
+                # 使用boundingRect获取精确宽度，设置tab展开
+                rect_to_char = fm.boundingRect(0, 0, 10000, fm.height(), 
+                                             Qt.TextExpandTabs, text_to_char, tab_stops)
+                rect_to_next = fm.boundingRect(0, 0, 10000, fm.height(), 
+                                             Qt.TextExpandTabs, text_to_next, tab_stops)
+                
+                char_x = block_rect.left() + rect_to_char.width()
+                next_char_x = block_rect.left() + rect_to_next.width()
+                
+                # 验证位置是否有效
+                if char_x >= next_char_x or char_x < block_rect.left():
+                    continue
+                
+                if char == ' ':
+                    # 绘制空格点
+                    center_x = char_x + (next_char_x - char_x) / 2
+                    center_y = baseline_y - fm.height() / 4
+                    painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                    drawn_any = True
+                
+                elif char == '\t':
+                    # 绘制 tab 箭头，两边留出3px空隙
+                    arrow_y = baseline_y - fm.height() / 4
+                    arrow_start_x = char_x + 3
+                    arrow_end_x = next_char_x - 3
+                    
+                    # 确保箭头有最小长度
+                    if arrow_end_x <= arrow_start_x:
+                        arrow_end_x = arrow_start_x + 8
+                    
+                    # 绘制箭头主体
+                    painter.drawLine(int(arrow_start_x), int(arrow_y), 
+                                   int(arrow_end_x), int(arrow_y))
+                    # 绘制箭头头部
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y - 2))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y + 2))
+                    drawn_any = True
+        
+        # 恢复画刷
+        painter.setBrush(Qt.NoBrush)
+        
+        # 如果没有成功绘制任何字符，抛出异常使用fallback
+        if not drawn_any and any(c in [' ', '\t'] for c in text):
+            raise Exception("Failed to draw whitespace using painter metrics")
+    
+    def _draw_whitespace_using_cursor_positions(self, painter, block, text, block_rect):
+        """
+        使用编辑器的光标位置获取精确的字符位置
+        
+        Args:
+            painter (QPainter): 绘制器
+            block (QTextBlock): 文本块
+            text (str): 文本内容
+            block_rect (QRectF): 块矩形区域
+        """
+        fm = self.editor.fontMetrics()
+        baseline_y = block_rect.top() + fm.ascent()
+        
+        # 设置画刷和画笔
+        painter.setBrush(self.editor.whitespace_color)
+        
+        # 获取块的起始位置
+        block_start = block.position()
+        drawn_any = False
+        
+        for i, char in enumerate(text):
+            if char in [' ', '\t']:
+                # 创建光标到当前字符位置
+                cursor_at_char = QTextCursor(self.editor.document())
+                cursor_at_char.setPosition(block_start + i)
+                
+                # 创建光标到下一个字符位置
+                cursor_at_next = QTextCursor(self.editor.document())
+                cursor_at_next.setPosition(block_start + i + 1)
+                
+                # 获取光标矩形
+                char_rect = self.editor.cursorRect(cursor_at_char)
+                next_rect = self.editor.cursorRect(cursor_at_next)
+                
+                # 验证矩形是否有效
+                if (char_rect.isNull() or next_rect.isNull() or 
+                    char_rect.left() < 0 or next_rect.left() < 0 or
+                    char_rect.left() >= next_rect.left()):
+                    # 位置无效，跳过这个字符
+                    continue
+                
+                # 计算字符的实际屏幕位置
+                char_x = char_rect.left()
+                next_char_x = next_rect.left()
+                
+                if char == ' ':
+                    # 绘制空格点
+                    center_x = char_x + (next_char_x - char_x) / 2
+                    center_y = baseline_y - fm.height() / 4
+                    painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                    drawn_any = True
+                
+                elif char == '\t':
+                    # 绘制 tab 箭头，两边留出3px空隙
+                    arrow_y = baseline_y - fm.height() / 4
+                    arrow_start_x = char_x + 3
+                    arrow_end_x = next_char_x - 3
+                    
+                    # 确保箭头有最小长度
+                    if arrow_end_x <= arrow_start_x:
+                        arrow_end_x = arrow_start_x + 8
+                    
+                    # 绘制箭头主体
+                    painter.drawLine(int(arrow_start_x), int(arrow_y), 
+                                   int(arrow_end_x), int(arrow_y))
+                    # 绘制箭头头部
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y - 2))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y + 2))
+                    drawn_any = True
+        
+        # 恢复画刷
+        painter.setBrush(Qt.NoBrush)
+        
+        # 如果没有成功绘制任何字符，抛出异常使用fallback
+        if not drawn_any and any(c in [' ', '\t'] for c in text):
+            raise Exception("Failed to draw whitespace using cursor positions")
     
     def _draw_whitespace_fallback(self, painter, text, block_rect):
         """
-        回退方案：使用简单的字符宽度计算绘制空白字符
+        回退方案：使用精确的字符测量绘制空白字符
         
         Args:
             painter (QPainter): 绘制器
@@ -54,43 +315,58 @@ class PreciseWhitespaceRenderer:
         # 计算基线位置
         baseline_y = block_rect.top() + fm.ascent()
         
-        # 当前绘制位置
-        x = block_rect.left()
-        
+        # 使用fontMetrics精确测量文本到每个位置的宽度
         for i, char in enumerate(text):
-            if char == ' ':
-                # 绘制空格实心点
-                center_x = x + space_width / 2
-                center_y = baseline_y - line_height / 4
-                painter.setBrush(self.editor.whitespace_color)
-                painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
-                painter.setBrush(Qt.NoBrush)  # 恢复无填充
-                x += space_width
-            elif char == '\t':
-                # 计算tab停止位置
-                current_offset = x - block_rect.left()
-                next_tab_stop = ((current_offset // tab_width) + 1) * tab_width
-                new_x = block_rect.left() + next_tab_stop
+            if char in [' ', '\t']:
+                # 获取到当前字符位置的精确宽度
+                text_to_char = text[:i]
                 
-                # 绘制Tab箭头，两边增加3px空隙
-                arrow_y = baseline_y - line_height / 4
-                arrow_start_x = x + 3  # 左边3px空隙
-                arrow_end_x = new_x - 3  # 右边3px空隙
+                # 使用fontMetrics测量文本宽度，这会正确处理tab
+                char_x = block_rect.left()
+                if text_to_char:
+                    # 创建临时的文本选项来处理tab
+                    option = QTextOption()
+                    option.setTabStopDistance(tab_width)
+                    
+                    # 使用boundingRect来获取精确的文本宽度
+                    temp_rect = fm.boundingRect(QRect(0, 0, 10000, line_height), 
+                                              Qt.TextExpandTabs, text_to_char, 
+                                              int(tab_width / space_width))
+                    char_x = block_rect.left() + temp_rect.width()
                 
-                # 确保箭头有最小长度
-                if arrow_end_x <= arrow_start_x:
-                    arrow_end_x = arrow_start_x + 8
+                # 获取下一个字符的位置
+                text_to_next = text[:i+1]
+                next_char_x = block_rect.left()
+                if text_to_next:
+                    temp_rect = fm.boundingRect(QRect(0, 0, 10000, line_height), 
+                                              Qt.TextExpandTabs, text_to_next, 
+                                              int(tab_width / space_width))
+                    next_char_x = block_rect.left() + temp_rect.width()
+                else:
+                    next_char_x = char_x + (tab_width if char == '\t' else space_width)
                 
-                # 绘制箭头
-                painter.drawLine(int(arrow_start_x), int(arrow_y), int(arrow_end_x), int(arrow_y))
-                painter.drawLine(int(arrow_end_x), int(arrow_y), int(arrow_end_x - 4), int(arrow_y - 2))
-                painter.drawLine(int(arrow_end_x), int(arrow_y), int(arrow_end_x - 4), int(arrow_y + 2))
+                if char == ' ':
+                    # 绘制空格实心点
+                    center_x = char_x + (next_char_x - char_x) / 2
+                    center_y = baseline_y - line_height / 4
+                    painter.setBrush(self.editor.whitespace_color)
+                    painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                    painter.setBrush(Qt.NoBrush)
                 
-                x = new_x
-            else:
-                # 普通字符，计算其宽度
-                char_width = fm.horizontalAdvance(char)
-                x += char_width
+                elif char == '\t':
+                    # 绘制Tab箭头，两边增加3px空隙
+                    arrow_y = baseline_y - line_height / 4
+                    arrow_start_x = char_x + 3
+                    arrow_end_x = next_char_x - 3
+                    
+                    # 确保箭头有最小长度
+                    if arrow_end_x <= arrow_start_x:
+                        arrow_end_x = arrow_start_x + 8
+                    
+                    # 绘制箭头
+                    painter.drawLine(int(arrow_start_x), int(arrow_y), int(arrow_end_x), int(arrow_y))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), int(arrow_end_x - 4), int(arrow_y - 2))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), int(arrow_end_x - 4), int(arrow_y + 2))
     
     def _get_or_create_layout(self, block):
         """
@@ -121,44 +397,46 @@ class PreciseWhitespaceRenderer:
             block_rect (QRectF): 块矩形区域
         """
         if layout.lineCount() == 0:
-            return
+            raise Exception("Layout has no lines")
             
         line = layout.lineAt(0)
         if not line.isValid():
-            return
+            raise Exception("Layout line is invalid")
             
         fm = self.editor.fontMetrics()
         baseline_y = block_rect.top() + fm.ascent()
         
+        # 设置画刷和画笔
+        painter.setBrush(self.editor.whitespace_color)
+        
+        # 验证能否获取位置信息
+        drawn_any = False
         for i, char in enumerate(text):
             if char in [' ', '\t']:
-                try:
-                    # 获取字符的精确 x 坐标
-                    char_x = line.cursorToX(i)
-                    next_char_x = line.cursorToX(i + 1)
-                    
-                    # 检查返回值是否有效
-                    if char_x < 0 or next_char_x < 0:
-                        continue
-                    
-                    # 转换为视口坐标
-                    screen_x = block_rect.left() + char_x
-                    screen_next_x = block_rect.left() + next_char_x
-                except Exception:
-                    # 如果获取位置失败，跳过这个字符
+                # 获取字符的精确 x 坐标
+                char_x = line.cursorToX(i)
+                next_char_x = line.cursorToX(i + 1)
+                
+                # 检查返回值是否有效
+                if char_x < 0 or next_char_x < 0 or char_x == next_char_x:
                     continue
+                
+                # 转换为视口坐标
+                screen_x = block_rect.left() + char_x
+                screen_next_x = block_rect.left() + next_char_x
                 
                 if char == ' ':
                     # 绘制空格点
                     center_x = screen_x + (screen_next_x - screen_x) / 2
                     center_y = baseline_y - fm.height() / 4
                     painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                    drawn_any = True
                 
                 elif char == '\t':
-                    # 绘制 tab 箭头
+                    # 绘制 tab 箭头，两边留出3px空隙
                     arrow_y = baseline_y - fm.height() / 4
-                    arrow_start_x = screen_x + 4
-                    arrow_end_x = screen_next_x - 4
+                    arrow_start_x = screen_x + 3
+                    arrow_end_x = screen_next_x - 3
                     
                     # 确保箭头有最小长度
                     if arrow_end_x <= arrow_start_x:
@@ -172,6 +450,14 @@ class PreciseWhitespaceRenderer:
                                    int(arrow_end_x - 4), int(arrow_y - 2))
                     painter.drawLine(int(arrow_end_x), int(arrow_y), 
                                    int(arrow_end_x - 4), int(arrow_y + 2))
+                    drawn_any = True
+        
+        # 恢复画刷
+        painter.setBrush(Qt.NoBrush)
+        
+        # 如果没有成功绘制任何空白字符，抛出异常以使用fallback
+        if not drawn_any and any(c in [' ', '\t'] for c in text):
+            raise Exception("Failed to draw any whitespace characters")
 
 
 class LineNumberArea(QWidget):
@@ -220,6 +506,13 @@ class CodeEditor(QPlainTextEdit):
         
         # 空白字符颜色设置
         self.whitespace_color = QColor("#6A737D")  # 深灰色
+        
+        # 设置等宽字体（推荐用于代码编辑）
+        font = QFont("Consolas", 10)  # Consolas是Windows常见的等宽字体
+        if not font.exactMatch():
+            font = QFont("Courier New", 10)  # 备选等宽字体
+        font.setFixedPitch(True)
+        self.setFont(font)
         
         # 创建精确渲染器（必须在setTabStopDistance之前创建）
         self.precise_renderer = PreciseWhitespaceRenderer(self)
@@ -273,17 +566,175 @@ class CodeEditor(QPlainTextEdit):
     
     def paintEvent(self, event):
         """
-        重写绘制事件，添加自定义空白字符绘制
+        重写绘制事件，先绘制正常文本，再叠加空白字符
         
         Args:
             event (QPaintEvent): 绘制事件
         """
-        # 先调用父类的paintEvent绘制正常文本
+        # 先调用父类的paintEvent绘制正常文本（包括选择高亮等）
         super().paintEvent(event)
         
-        # 如果需要显示空白字符，则使用精确渲染器绘制
+        # 如果需要显示空白字符，则在上面叠加绘制
         if self.show_whitespace:
-            self.draw_whitespace_characters(event)
+            self._draw_whitespace_overlay(event)
+    
+    def _draw_whitespace_overlay(self, event):
+        """
+        在已绘制的文本上叠加空白字符，使用精确的逐字符位置计算
+        
+        Args:
+            event (QPaintEvent): 绘制事件
+        """
+        painter = QPainter(self.viewport())
+        try:
+            painter.setPen(self.whitespace_color)
+            
+            # 获取可见区域的文本块
+            block = self.firstVisibleBlock()
+            viewport_offset = self.contentOffset()
+            
+            while block.isValid():
+                block_geometry = self.blockBoundingGeometry(block)
+                offset = block_geometry.translated(viewport_offset)
+                
+                # 检查块是否在可见区域内
+                if offset.top() > event.rect().bottom():
+                    break
+                    
+                if offset.bottom() >= event.rect().top():
+                    self._draw_block_whitespace_overlay(painter, block, offset)
+                
+                block = block.next()
+        finally:
+            painter.end()
+    
+    def _draw_block_whitespace_overlay(self, painter, block, block_rect):
+        """
+        为单个文本块绘制空白字符叠加，使用与之前完美方案相同的逐字符计算
+        
+        Args:
+            painter (QPainter): 绘制器
+            block (QTextBlock): 文本块
+            block_rect (QRectF): 块矩形区域
+        """
+        text = block.text()
+        if not text:
+            return
+        
+        # 设置字体（与编辑器保持一致）
+        painter.setFont(self.font())
+        fm = painter.fontMetrics()
+        
+        # 计算基线位置
+        baseline_y = block_rect.top() + fm.ascent()
+        
+        # 使用与之前完美方案相同的逐字符位置计算
+        x = block_rect.left()
+        
+        for i, char in enumerate(text):
+            if char == ' ':
+                # 在空格位置绘制点
+                center_x = x + fm.horizontalAdvance(' ') / 2
+                center_y = baseline_y - fm.height() / 4
+                painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                x += fm.horizontalAdvance(' ')
+                
+            elif char == '\t':
+                # 计算tab的结束位置
+                tab_width = self.tabStopDistance()
+                current_offset = x - block_rect.left()
+                next_tab_stop = ((current_offset // tab_width) + 1) * tab_width
+                new_x = block_rect.left() + next_tab_stop
+                
+                # 绘制tab箭头
+                arrow_y = baseline_y - fm.height() / 4
+                arrow_start_x = x + 3
+                arrow_end_x = new_x - 3
+                
+                if arrow_end_x > arrow_start_x:
+                    # 绘制箭头主体
+                    painter.drawLine(int(arrow_start_x), int(arrow_y), 
+                                   int(arrow_end_x), int(arrow_y))
+                    # 绘制箭头头部
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y - 2))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y + 2))
+                
+                x = new_x
+                
+            else:
+                # 普通字符，只计算宽度不绘制
+                x += fm.horizontalAdvance(char)
+    
+    def _draw_block_text_with_whitespace(self, painter, block, block_rect, event):
+        """
+        绘制文本块，同时在精确位置绘制空白字符
+        
+        Args:
+            painter (QPainter): 绘制器
+            block (QTextBlock): 文本块
+            block_rect (QRectF): 块矩形区域
+            event (QPaintEvent): 绘制事件
+        """
+        text = block.text()
+        if not text:
+            return
+        
+        # 设置字体
+        painter.setFont(self.font())
+        fm = painter.fontMetrics()
+        
+        # 计算基线位置
+        baseline_y = block_rect.top() + fm.ascent()
+        
+        # 使用简单但精确的方法：逐字符绘制
+        x = block_rect.left()
+        
+        for i, char in enumerate(text):
+            if char == ' ':
+                # 绘制空格字符
+                painter.setPen(self.palette().color(self.foregroundRole()))
+                painter.drawText(int(x), int(baseline_y), char)
+                
+                # 在空格位置绘制点
+                painter.setPen(self.whitespace_color)
+                center_x = x + fm.horizontalAdvance(' ') / 2
+                center_y = baseline_y - fm.height() / 4
+                painter.drawEllipse(int(center_x - 1), int(center_y - 1), 2, 2)
+                
+                x += fm.horizontalAdvance(' ')
+                
+            elif char == '\t':
+                # 计算tab的结束位置
+                tab_width = self.tabStopDistance()
+                current_offset = x - block_rect.left()
+                next_tab_stop = ((current_offset // tab_width) + 1) * tab_width
+                new_x = block_rect.left() + next_tab_stop
+                
+                # 绘制tab箭头
+                painter.setPen(self.whitespace_color)
+                arrow_y = baseline_y - fm.height() / 4
+                arrow_start_x = x + 3
+                arrow_end_x = new_x - 3
+                
+                if arrow_end_x > arrow_start_x:
+                    # 绘制箭头主体
+                    painter.drawLine(int(arrow_start_x), int(arrow_y), 
+                                   int(arrow_end_x), int(arrow_y))
+                    # 绘制箭头头部
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y - 2))
+                    painter.drawLine(int(arrow_end_x), int(arrow_y), 
+                                   int(arrow_end_x - 4), int(arrow_y + 2))
+                
+                x = new_x
+                
+            else:
+                # 绘制普通字符
+                painter.setPen(self.palette().color(self.foregroundRole()))
+                painter.drawText(int(x), int(baseline_y), char)
+                x += fm.horizontalAdvance(char)
     
     def draw_whitespace_characters(self, event):
         """
