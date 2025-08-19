@@ -106,39 +106,14 @@ class SQLFormatterApp(QMainWindow):
         self.tab_widget.setMovable(True)  # 允许拖拽标签页
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         
-        # 创建新建标签页按钮
-        self.new_tab_button = QPushButton("＋")
-        self.new_tab_button.setFixedSize(28, 28)
-        self.new_tab_button.setToolTip("新建标签页 (Ctrl+N)")
-        self.new_tab_button.clicked.connect(self.new_tab)
-        self.new_tab_button.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #858585;
-                border: none;
-                border-radius: 14px;
-                font-size: 14px;
-                font-weight: normal;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                background-color: #404040;
-                color: #ffffff;
-                border: 1px solid #555555;
-            }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
-                color: #ffffff;
-            }
-        """)
-        
-        # 将按钮设置为标签栏的角落组件
-        self.tab_widget.setCornerWidget(self.new_tab_button)
+        # 连接标签页点击事件，处理新建标签页功能
+        self.tab_widget.tabBarClicked.connect(self.on_tab_clicked)
         
         layout.addWidget(self.tab_widget)
         
-        # 创建第一个标签页
+        # 创建第一个标签页和[+]标签页
         self.new_tab()
+        self.add_plus_tab()
 
         # 初始化菜单栏
         self.setup_menus()
@@ -151,7 +126,7 @@ class SQLFormatterApp(QMainWindow):
         """设置菜单栏"""
         # 文件菜单
         file_menu = self.menuBar().addMenu('文件(&F)')
-        file_menu.addAction('新建', self.new_tab).setShortcut('Ctrl+N')
+        file_menu.addAction('新建', self.insert_tab_before_plus).setShortcut('Ctrl+N')
         file_menu.addAction('打开', self.open_file).setShortcut('Ctrl+O')
         file_menu.addSeparator()
         file_menu.addAction('保存', self.save_file).setShortcut('Ctrl+S')
@@ -205,17 +180,62 @@ class SQLFormatterApp(QMainWindow):
         
         return tab_editor
         
+    def add_plus_tab(self):
+        """添加[+]标签页作为新建按钮"""
+        # 创建一个空的widget作为[+]标签页
+        plus_tab = QWidget()
+        plus_tab.is_plus_tab = True  # 标记这是一个[+]标签页
+        
+        # 添加[+]标签页，总是在最后
+        index = self.tab_widget.addTab(plus_tab, "+")
+        
+        # 设置[+]标签页不可关闭
+        self.tab_widget.tabBar().setTabButton(index, QTabBar.RightSide, None)
+        
+    def on_tab_clicked(self, index):
+        """处理标签页点击事件"""
+        tab_widget = self.tab_widget.widget(index)
+        
+        # 如果点击的是[+]标签页，创建新的标签页
+        if hasattr(tab_widget, 'is_plus_tab') and tab_widget.is_plus_tab:
+            # 在[+]标签页前面插入新标签页
+            self.insert_tab_before_plus()
+            
+    def insert_tab_before_plus(self):
+        """在[+]标签页前插入新的标签页"""
+        # 移除[+]标签页
+        plus_index = self.tab_widget.count() - 1
+        plus_widget = self.tab_widget.widget(plus_index)
+        self.tab_widget.removeTab(plus_index)
+        
+        # 创建新的标签页
+        new_tab = self.new_tab()
+        
+        # 重新添加[+]标签页
+        self.add_plus_tab()
+        
+        # 切换到新创建的标签页
+        self.tab_widget.setCurrentWidget(new_tab)
             
     def close_tab(self, index):
         """关闭指定标签页"""
-        if self.tab_widget.count() <= 1:
-            # 如果只有一个标签页，创建新的空标签页
-            self.new_tab()
-            
         tab_editor = self.tab_widget.widget(index)
         
+        # 如果是[+]标签页，不允许关闭
+        if hasattr(tab_editor, 'is_plus_tab') and tab_editor.is_plus_tab:
+            return
+        
+        # 检查是否只剩下一个普通标签页（+[+]标签页）
+        normal_tab_count = sum(1 for i in range(self.tab_widget.count()) 
+                              if not (hasattr(self.tab_widget.widget(i), 'is_plus_tab') 
+                                     and self.tab_widget.widget(i).is_plus_tab))
+        
+        if normal_tab_count <= 1:
+            # 如果只有一个普通标签页，先创建新的空标签页
+            self.insert_tab_before_plus()
+        
         # 检查是否有未保存的更改
-        if tab_editor.is_modified:
+        if hasattr(tab_editor, 'is_modified') and tab_editor.is_modified:
             reply = QMessageBox.question(
                 self, '确认关闭',
                 f'文件 "{tab_editor.get_display_name()}" 有未保存的更改，是否保存？',
@@ -228,7 +248,31 @@ class SQLFormatterApp(QMainWindow):
             elif reply == QMessageBox.Cancel:
                 return  # 取消关闭
                 
+        # 记录当前选中的标签页索引
+        current_index = self.tab_widget.currentIndex()
+        
+        # 移除标签页
         self.tab_widget.removeTab(index)
+        
+        # 如果关闭的是当前标签页，需要选择合适的标签页
+        if index == current_index:
+            # 获取新的标签页数量
+            new_count = self.tab_widget.count()
+            
+            # 如果还有标签页
+            if new_count > 0:
+                # 找到最后一个非[+]标签页
+                last_normal_index = -1
+                for i in range(new_count - 1, -1, -1):  # 从后往前找
+                    widget = self.tab_widget.widget(i)
+                    if not (hasattr(widget, 'is_plus_tab') and widget.is_plus_tab):
+                        last_normal_index = i
+                        break
+                
+                # 如果找到了普通标签页，切换到它
+                if last_normal_index >= 0:
+                    self.tab_widget.setCurrentIndex(last_normal_index)
+        
         self.update_window_title()
         
     def close_current_tab(self):
@@ -246,7 +290,11 @@ class SQLFormatterApp(QMainWindow):
         
     def get_current_tab_editor(self):
         """获取当前活动的标签页编辑器"""
-        return self.tab_widget.currentWidget()
+        current_widget = self.tab_widget.currentWidget()
+        # 如果当前是[+]标签页，返回None
+        if hasattr(current_widget, 'is_plus_tab') and current_widget.is_plus_tab:
+            return None
+        return current_widget
         
     def update_tab_title(self, tab_editor):
         """更新标签页标题"""
